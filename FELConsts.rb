@@ -14,6 +14,8 @@
 #   limitations under the License.
 #
 
+FELIX_VERSION = "1.0 alfa"
+
 #AWUSBRequest types
 module AWUSBCommand
   AW_USB_READ                           = 0x11
