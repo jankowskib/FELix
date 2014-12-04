@@ -19,6 +19,7 @@ require 'hexdump'
 require 'colorize'
 require 'optparse'
 require 'libusb'
+require 'bindata'
 require_relative 'FELStructs'
 
 #Routines
