@@ -86,39 +86,40 @@ end
 def debug_packet(packet, dir)
     if packet[0..3] == "AWUC" && packet.length == 32
         p = AWUSBRequest.read(packet)
-        print "--> #{p.magic} (#{p.len}, #{p.len2}):\t"
+        print "--> (#{packet.length}) "
         case p.cmd
         when AWUSBCommand::AW_USB_READ
-            puts "AW_USB_READ"
+            print "AW_USB_READ".yellow
             dir = :read
         when AWUSBCommand::AW_USB_WRITE
-            puts "AW_USB_WRITE"
+            print "AW_USB_WRITE".yellow
             dir = :write
         else
-            puts "AW_UNKNOWN (0x%x)" % p.type
+            print "AW_UNKNOWN (0x%x)".red % p.type
         end
+        puts "\t(Prepare for #{dir.to_s} of #{p.len} bytes)"
         # puts packet.inspect
-    elsif packet[0..4] == "AWUS\x0"
-        p = AWUSBResponse.read(packet)
-        puts "<-- #{p.magic} tag 0x%x, status 0x%x" % [p.tag, p.csw_status]
     elsif packet[0..7] == "AWUSBFEX"
         p = AWFELVerifyDeviceResponse.read(packet)
         puts "<-- AWFELVerifyDeviceResponse: %s, FW: %d, mode: %s" % [
-            board_id_to_str(p.board), p.fw, FEL_DEVICE_MODE.key(p.mode)]
+          board_id_to_str(p.board), p.fw, FEL_DEVICE_MODE.key(p.mode)]
+    elsif packet[0..3] == "AWUS" && packet.length == 13
+        p = AWUSBResponse.read(packet)
+        puts "<-- #{p.magic} tag 0x%x, status 0x%x" % [p.tag, p.csw_status]
     else
         return :unk if dir == :unk
         print (dir == :write ? "--> " : "<-- ") << "(#{packet.length}) "
         if packet.length == 16
             p = AWFELMessage.read(packet)
             case p.cmd
-            when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE"
+            when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE".yellow
             when AWCOMMAND[:FEX_CMD_FES_RW_TRANSMITE]
-                puts "#{AWCOMMAND.key(p.cmd)}: " << (p.data_tag and
+                puts "#{AWCOMMAND.key(p.cmd).yellow}: " << (p.data_tag and
                     FESTransmiteFlag::FES_W_DOU_DOWNLOAD ? "FES_TRANSMITE_W_DOU_DOWNLOAD":
                     (p.data_tag && FESTransmiteFlag::FES_R_DOU_UPLOAD ?
                     "FES_TRANSMITE_R_DOU_UPLOAD" : "FES_TRANSMITE_UNKNOWN #{p.flag}"))
             else
-                puts "#{AWCOMMAND.key(p.cmd)}: (0x%.2X):" <<
+                puts "#{AWCOMMAND.key(p.cmd).yellow}: (0x%.2X):" <<
                 "#{packet.to_hex_string[0..46]}" % p.cmd
             end
         else
@@ -167,19 +168,103 @@ def list_devices(devices)
     end
 end
 
-def send_request(**args)
-    data = AWFELStandardRequest.new
-    puts "Sending %s" % data.to_binary_s.to_hex_string if options[:verbose]
-    r = handle.bulk_transfer(:dataOut => data.to_binary_s, :endpoint => $usb_out, :timeout => 2000)
-    puts "Result: " << r.inspect if options[:verbose]
+# Sends a request
+# @param handle [LIBUSB::DevHandle] a device handle
+# @param data binary data
+# @return [AWUSBResponse] or nil if fails
+def send_request(handle, data)
+# 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
+  begin
+    request = AWUSBRequest.new
+    request.len = data.length
+    debug_packet(request.to_binary_s, :write) if $options[:verbose]
+    r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
+     $usb_out)
+    puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
 
-    r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in, :timeout => 2000)
-    p = AWUSBResponse.read(r) if r.length == 13
-    debug_packet(p.to_binary_s, :read) if options[:verbose]
+# 2. Send a proper data
+    debug_packet(data, :write) if $options[:verbose]
+    r = handle.bulk_transfer(:dataOut => data, :endpoint => $usb_out)
+    puts "Sent ".green << data.length.to_s.yellow << " bytes".green if $options[:verbose]
+  rescue => e
+    puts "Failed to send ".red << data.length.to_s.yellow << " bytes".red <<
+    " (" << e.message << ")"
+    return nil
+  end
+# 3. Get AWUSBResponse
+  begin
+    r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
+    debug_packet(r, :read) if $options[:verbose]
+    puts "Received ".green << r.length.to_s.yellow << " bytes".green if $options[:verbose]
+    r
+  rescue => e
+    puts "Failed to receive ".red << 13.to_s.yellow << " bytes".red <<
+    " (" << e.message << ")"
+    nil
+  end
+end
+
+# Read data
+# @param handle [LIBUSB::DevHandle] a device handle
+# @param len expected length of data
+# @return [String] binary data or nil if fail
+def recv_request(handle, len)
+  # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
+  begin
+    request = AWUSBRequest.new
+    request.len = len
+    request.cmd = AWUSBCommand::AW_USB_READ
+    debug_packet(request.to_binary_s, :write) if $options[:verbose]
+    r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
+    puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
+  rescue => e
+    puts "Failed to send AWUSBRequest ".red <<
+    " (" << e.message << ")"
+    return nil
+  end
+  # 2. Read data of length we specified in request
+  begin
+    recv_data = handle.bulk_transfer(:dataIn => len, :endpoint => $usb_in)
+    debug_packet(recv_data, :read) if $options[:verbose]
+  # 3. Get AWUSBResponse
+    r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
+    debug_packet(r, :read) if $options[:verbose]
+    puts "Received ".green << "#{r.length}".yellow << " bytes".green if $options[:verbose]
+    recv_data
+  rescue => e
+    puts "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
+    " (" << e.message << ")"
+    nil
+  end
+
+end
+
+
+# Clean up on and finish program
+# @param handle [LIBUSB::DevHandle] a device handle
+def bailout(handle)
+  handle.close if handle
+  exit
+end
+
+# Get device status
+# @param handle [LIBUSB::DevHandle] a device handle
+def fel_get_device_info(handle)
+  data = send_request(handle, AWFELStandardRequest.new.to_binary_s)
+  if data == nil
+    puts "FAIL".red << " Cannot receive device info"
+    return
+  end
+  data = recv_request(handle, 32)
+  if data == nil or data.length != 32
+    puts "FAIL".red << " Cannot receive device info"
+    return
+  end
+  response = AWFELVerifyDeviceResponse.read(data)
+  puts response.inspect
 end
 
 $options = {}
-
 puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
 puts "I dont give any warranty on this software"
 puts "You use it at own risk!"
@@ -195,9 +280,12 @@ OptionParser.new do |opts|
         list_devices(devices)
         exit
     end
+
     opts.on("-d", "--device id", Integer,
-  "Select device number (default 0)") { |id| $options[:device] = id }
-    opts.on_tail("-v", "--verbose", "Verbose communication") { $options[:verbose] = true }
+      "Select device number (default 0)") { |id| $options[:device] = id }
+    opts.on("-i", "--info", "Get device info") { $options[:action] = :device_info }
+    opts.on_tail("-v", "--verbose", "Verbose traffic") {
+       $options[:verbose] = true }
     opts.on_tail("--version", "Show version") do
         puts FELIX_VERSION
         exit
@@ -218,7 +306,7 @@ if devices.size > 1 && $options[:device] == nil # If there's more than one
 else
     $options[:device] ||= 0
     dev = devices[$options[:device]]
-    print "-> Connecting to device at " << "port %d, FEL device %d@%d %x:%x" % [
+    print "* Connecting to device at " << "port %d, FEL device %d@%d %x:%x" % [
         dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
         dev.idProduct]
 end
@@ -227,50 +315,19 @@ $usb_out = dev.endpoints.select { |e| e.direction == :out }[0]
 $usb_in = dev.endpoints.select { |e| e.direction == :in }[0]
 
 begin
-    handle = dev.open
+    $handle = dev.open
     #detach_kernel_driver(0).
-    handle.claim_interface(0)
+    $handle.claim_interface(0)
     puts "\tOK".green
 rescue
     puts "\tFAIL".red
-    handle.close
-    exit
+    bailout($handle)
+end
+case $options[:action]
+when :device_info # case for FEL_R_VERIFY_DEVICE
+  fel_get_device_info($handle)
+else
+  puts "No action specified"
 end
 
-begin
-    request = AWUSBRequest.new
-    print "--> #{request.magic} (#{request.len}, #{request.len2}) (%s)" % request.to_binary_s.to_hex_string
-    r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
-    puts "\t OK, result: ".green << r.inspect
-rescue
-    puts "\tFAIL".red
-    handle.close
-    exit
-end
-data = AWFELStandardRequest.new
-puts "Sending %s" % data.to_binary_s.to_hex_string
-r = handle.bulk_transfer(:dataOut => data.to_binary_s, :endpoint => $usb_out)
-puts "Result: " << r.inspect
-
-r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
-p = AWUSBResponse.read(r) if r.length == 13
-debug_packet(p.to_binary_s, :read)
-
-#Then response
-request = AWUSBRequest.new
-request.cmd = AWUSBCommand::AW_USB_READ
-request.len = 32
-puts "--> #{request.magic} (#{request.len}, #{request.len2}) (%s)" % request.to_binary_s.to_hex_string
-r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
-puts "Result: " << r.inspect
-
-r = handle.bulk_transfer(:dataIn => 32, :endpoint => $usb_in)
-puts "Real result: " << r.inspect
-p = AWFELVerifyDeviceResponse.read(r) if r.length == 32
-debug_packet(p.to_binary_s, :read)
-
-r = handle.bulk_transfer(:dataIn => 13, :endpoint =>  $usb_in)
-p = AWUSBResponse.read(r) if r.length == 13
-debug_packet(p.to_binary_s, :read)
-
-handle.close
+bailout($handle)
