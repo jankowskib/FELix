@@ -39,28 +39,28 @@ require_relative 'FELStructs'
 # 2. FEL_RW_FES_TRANSMITE: Get FES (upload flag)
 # 3. FEL_R_VERIFY_DEVICE
 # 4. FEL_RW_FES_TRANSMITE: Flash new FES (download flag)
-# 5. FEX_CMD_FES_DOWN (No write) (00 00 00 00 | 00 00 10 00 | 00 00 04 7f 01 00) [SUNXI_EFEX_TAG_ERASE|SUNXI_EFEX_TAG_FINISH]
+# 5. FES_DOWN (No write) (00 00 00 00 | 00 00 10 00 | 00 00 04 7f 01 00) [SUNXI_EFEX_TAG_ERASE|SUNXI_EFEX_TAG_FINISH]
 # 6. FEL_R_VERIFY_DEVICE
-# 7. FEX_CMD_FES_VERIFY_STATUS (tail 04 7f 00 00) [SUNXI_EFEX_TAG_ERASE]
-# 8. FEX_CMD_FES_DOWN (write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size)
+# 7. FES_VERIFY_STATUS (tail 04 7f 00 00) [SUNXI_EFEX_TAG_ERASE]
+# 8. FES_DOWN (write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size)
 #                                  (00 00 00 00 00 00 00 00 01 00 01 7f 01 00) [SUNXI_EFEX_TAG_MBR|SUNXI_EFEX_TAG_FINISH]
-# 9. FEX_CMD_FES_VERIFY_STATUS (tail 01 7f 00 00) [SUNXI_EFEX_TAG_MBR]
+# 9. FES_VERIFY_STATUS (tail 01 7f 00 00) [SUNXI_EFEX_TAG_MBR]
 # (...)
 
 
 # 0x206 data80
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |00 00 00 00| 10 00 00 00 |04 7f 01 00  SUNXI_EFEX_TAG_ERASE|SUNXI_EFEX_TAG_FINISH
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |00 00 00 00| 00 00 01 00 |01 7f 01 00  SUNXI_EFEX_TAG_MBR|SUNXI_EFEX_TAG_FINISH
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 00 00 00| 10 00 00 00 |04 7f 01 00  SUNXI_EFEX_TAG_ERASE|SUNXI_EFEX_TAG_FINISH
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 00 00 00| 00 00 01 00 |01 7f 01 00  SUNXI_EFEX_TAG_MBR|SUNXI_EFEX_TAG_FINISH
 # Then following sequence (write in chunks of 128 bytes => becase of FES_MEDIA_INDEX_LOG) writing partitons...
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |00 80 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |80 80 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |00 81 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |80 81 00 00| 00 00 01 00 |00 00 00 00
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 80 00 00| 00 00 01 00 |00 00 00 00
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |80 80 00 00| 00 00 01 00 |00 00 00 00
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 81 00 00| 00 00 01 00 |00 00 00 00
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |80 81 00 00| 00 00 01 00 |00 00 00 00
 # -->                                                 ...
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |00 a3 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |80 a3 00 00| 00 00 01 00 |00 00 00 00
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 a3 00 00| 00 00 01 00 |00 00 00 00
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |80 a3 00 00| 00 00 01 00 |00 00 00 00
 # -->                                                 ...
-# --> (16) FEX_CMD_FES_DOWN (0x206): 06 02 00 00 |00 a4 00 00| 00 04 00 00 |00 00 01 00 SUNXI_EFEX_TAG_FINISH
+# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 a4 00 00| 00 04 00 00 |00 00 01 00 SUNXI_EFEX_TAG_FINISH
 
 # Convert board id to string
 # @param id [Integer] board id
@@ -88,10 +88,10 @@ def debug_packet(packet, dir)
         p = AWUSBRequest.read(packet)
         print "--> (#{packet.length}) "
         case p.cmd
-        when AWUSBCommand::AW_USB_READ
+        when AW_USB_READ
             print "AW_USB_READ".yellow
             dir = :read
-        when AWUSBCommand::AW_USB_WRITE
+        when AW_USB_WRITE
             print "AW_USB_WRITE".yellow
             dir = :write
         else
@@ -114,14 +114,14 @@ def debug_packet(packet, dir)
             case p.cmd
             when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE"
                                                            .yellow
-            when AWCOMMAND[:FEX_CMD_FES_RW_TRANSMITE]
+            when AWCOMMAND[:FES_RW_TRANSMITE]
               p = AWFELFESTrasportRequest.read(packet)
                 puts "#{AWCOMMAND.key(p.cmd)}: ".yellow <<
                   FES_TRANSMITE_FLAG.key(p.direction).to_s <<
                   ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
                                                                      p.len]
             else
-                puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X):"  % p.cmd
+                puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X):"  % p.cmd <<
                 "#{packet.to_hex_string[0..46]}"
             end
         else
@@ -133,7 +133,7 @@ def debug_packet(packet, dir)
 end
 
 # Decode USBPcap packets exported from Wireshark in C header format
-# eg. {
+# e.g. {
 # 0x1c, 0x00, 0x10, 0x60, 0xa9, 0x95, 0x00, 0xe0, /* ...`.... */
 # 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, /* ........ */
 # 0x01, 0x01, 0x00, 0x0d, 0x00, 0x80, 0x02, 0x00, /* ........ */
@@ -215,7 +215,7 @@ def recv_request(handle, len)
   begin
     request = AWUSBRequest.new
     request.len = len
-    request.cmd = AWUSBCommand::AW_USB_READ
+    request.cmd = AW_USB_READ
     debug_packet(request.to_binary_s, :write) if $options[:verbose]
     r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
     puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
@@ -268,7 +268,7 @@ end
 
 # Erase NAND flash
 # @param handle [LIBUSB::DevHandle] a device handle
-# @return [AWFELVerifyDeviceResponse] device status
+# @return [AWFESVerifyStatusResponse] operation status
 # @raise [String]
 def felix_format_device(handle)
   request = AWFELMessage.new
@@ -280,7 +280,31 @@ def felix_format_device(handle)
     puts "FAIL".red
     raise "Failed to send request"
   end
-  data
+  felix_verify_status(handle, :erase)
+end
+
+# Verify last operation status
+# @param handle [LIBUSB::DevHandle] a device handle
+# @param tag [Symbol] operation tag (one or more of FEX_TAGS)
+# @return [AWFESVerifyStatusResponse] device status
+# @raise [String] error name
+def felix_verify_status(handle, tag)
+  request = AWFELMessage.new
+  request.cmd = AWCOMMAND[:FES_R_VERIFY_STATUS]
+  request.address = 0
+  request.len = 0
+  request.flags = FEX_TAGS[tag]
+  data = send_request(handle, request.to_binary_s)
+  if data == nil
+    puts "FAIL".red << " Send request failed"
+    raise "Failed to send verify request"
+  end
+  data = recv_request(handle, 12)
+  if data == nil or data.length != 12
+    puts "FAIL".red << " Cannot verify device status"
+    raise "Failed to receive verify request"
+  end
+  AWFESVerifyStatusResponse.read(data)
 end
 
 $options = {}
@@ -365,8 +389,7 @@ when :device_info # case for FEL_R_VERIFY_DEVICE
 when :format
   begin
     data = felix_format_device($handle)
-    resp = AWUSBResponse.read(data)
-    puts "Device response:" << "#{CSW_STATUS.key(resp.csw_status)}".yellow
+    puts "Device response:" << "#{data.last_error}".yellow
   rescue => e
     puts "Failed to format device (#{e.message})"
   end

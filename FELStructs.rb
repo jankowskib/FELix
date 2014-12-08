@@ -22,7 +22,7 @@ class AWUSBRequest < BinData::Record # size 32
   uint16le :reserved1, :initial_value => 0
   uint8    :reserved2, :initial_value => 0
   uint8    :cmd_len,   :value => 0xC
-  uint8    :cmd,       :initial_value => AWUSBCommand::AW_USB_WRITE
+  uint8    :cmd,       :initial_value => AW_USB_WRITE
   uint8    :reserved3, :initial_value => 0
   uint32le :len2, :value => :len
   array    :reserved, :type => :uint8, :initial_length  => 10, :value => 0
@@ -42,7 +42,7 @@ class AWFELStandardRequest < BinData::Record # size 16
 end
 
 class AWFELFESTrasportRequest < BinData::Record # size 16
-  uint16le :cmd, :value => AWCOMMAND[:FEX_CMD_FES_RW_TRANSMITE]
+  uint16le :cmd, :value => AWCOMMAND[:FES_RW_TRANSMITE]
   uint16le :tag, :initial_value => 0
   uint32le :address
   uint32le :len
@@ -67,8 +67,14 @@ class AWFELVerifyDeviceResponse < BinData::Record # size 32
   array    :reserved, :type => :uint8, :initial_length => 8
 end
 
+class AWFESVerifyStatusResponse < BinData::Record # size 12
+  uint32le :flags # always 0x6a617603
+  uint32le :fes_crc # always 0
+  int32le  :last_error # 0 if OK, -1 if fail
+end
+
 class AWFELMessage < BinData::Record # size 16
-  uint16le :cmd, :initial_value => AWCOMMAND[:FEX_CMD_FES_DOWNLOAD]
+  uint16le :cmd, :initial_value => AWCOMMAND[:FES_DOWNLOAD]
   uint16le :tag, :initial_value => 0
   uint32le :address # also msg_len, start for verify
   # addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL, FES_MEDIA_INDEX_LOG

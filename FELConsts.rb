@@ -17,10 +17,8 @@
 FELIX_VERSION = "1.0 alfa"
 
 #AWUSBRequest types
-module AWUSBCommand
-  AW_USB_READ                           = 0x11
-  AW_USB_WRITE                          = 0x12
-end
+AW_USB_READ                              = 0x11
+AW_USB_WRITE                             = 0x12
 
 #\1: Messages (R -> Read, W -> Write => the operation you must do after send)
 AWCOMMAND = {
@@ -33,30 +31,30 @@ AWCOMMAND = {
   :FEL_R_RUN                             => 0x102,
   :FEL_R_UPLOAD                          => 0x103,
   #FES Messages
-  :FEX_CMD_FES_RW_TRANSMITE              => 0x201,
-  :FEX_CMD_FES_W_RUN                     => 0x202,
-  :FEX_CMD_FES_W_INFO                    => 0x203, # len ∈ {24...31}
-  :FEX_CMD_FES_R_GET_MSG                 => 0x204,
-  :FEX_CMD_FES_R_UNREG_FED               => 0x205,
-  :FEX_CMD_FES_DOWNLOAD                  => 0x206,
-  :FEX_CMD_FES_UPLOAD                    => 0x207,
-  :FEX_CMD_FES_VERIFY                    => 0x208,
-  :FEX_CMD_FES_QUERY_STORAGE             => 0x209,
-  :FEX_CMD_FES_R_FLASH_SET_ON            => 0x20A,
-  :FEX_CMD_FES_R_FLASH_SET_OFF           => 0x20B,
-  :FEX_CMD_FES_VERIFY_VALUE              => 0x20C,
-  :FEX_CMD_FES_VERIFY_STATUS             => 0x20D, # Read len 12
-  :FEX_CMD_FES_FLASH_SIZE_PROBE          => 0x20E,
-  :FEX_CMD_FES_TOOL_MODE                 => 0x20F,
-  :FEX_CMD_FES_MEMSET                    => 0x210,
-  :FEX_CMD_FES_PMU                       => 0x211,
-  :FEX_CMD_FES_UNSEQMEM_READ             => 0x212,
-  :FEX_CMD_FES_UNSEQMEM_WRITE            => 0x213
+  :FES_RW_TRANSMITE                      => 0x201,
+  :FES_W_RUN                             => 0x202,
+  :FES_W_INFO                            => 0x203, # len ∈ {24...31}
+  :FES_R_GET_MSG                         => 0x204,
+  :FES_R_UNREG_FED                       => 0x205,
+  :FES_DOWNLOAD                          => 0x206,
+  :FES_UPLOAD                            => 0x207,
+  :FES_VERIFY                            => 0x208,
+  :FES_QUERY_STORAGE                     => 0x209,
+  :FES_R_FLASH_SET_ON                    => 0x20A,
+  :FES_R_FLASH_SET_OFF                   => 0x20B,
+  :FES_VERIFY_VALUE                      => 0x20C,
+  :FES_R_VERIFY_STATUS                   => 0x20D, # Read len 12
+  :FES_FLASH_SIZE_PROBE                  => 0x20E,
+  :FES_TOOL_MODE                         => 0x20F,
+  :FES_MEMSET                            => 0x210,
+  :FES_PMU                               => 0x211,
+  :FES_UNSEQMEM_READ                     => 0x212,
+  :FES_UNSEQMEM_WRITE                    => 0x213
 }
 
 FES_TRANSMITE_FLAG = {
-  :download                    => 0x10,
-  :upload                      => 0x20
+  :download                              => 0x10,
+  :upload                                => 0x20
 }
 
 FEL_DEVICE_MODE = {
@@ -66,7 +64,7 @@ FEL_DEVICE_MODE = {
   :AL_VERIFY_DEV_MODE_UPDATE_COOL        => 0x3,
   :AL_VERIFY_DEV_MODE_UPDATE_HOT         => 0x4
 }
-#TAGS FOR FEX_CMD_FES_DOWN
+#TAGS FOR FES_DOWN
 FEX_TAGS = {
   :data_mask                         => 0x7FFF,
   :dram_mask                         => 0x7F00,
