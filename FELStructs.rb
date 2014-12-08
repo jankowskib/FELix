@@ -41,6 +41,16 @@ class AWFELStandardRequest < BinData::Record # size 16
   array    :reserved, :type => :uint8, :initial_length  => 12, :value => 0
 end
 
+class AWFELFESTrasportRequest < BinData::Record # size 16
+  uint16le :cmd, :value => AWCOMMAND[:FEX_CMD_FES_RW_TRANSMITE]
+  uint16le :tag, :initial_value => 0
+  uint32le :address
+  uint32le :len
+  uint8    :media_index, :initial_value => 0
+  uint8    :direction, :initial_value => FES_TRANSMITE_FLAG[:download]
+  array    :reserved, :type => :uint8, :initial_length  => 2, :value => 0
+end
+
 class AWFELStandardResponse < BinData::Record # size 8
   uint16le :unk1
   array :unk2, :type => :uint8, :length => 6

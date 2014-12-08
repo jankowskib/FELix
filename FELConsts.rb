@@ -54,10 +54,10 @@ AWCOMMAND = {
   :FEX_CMD_FES_UNSEQMEM_WRITE            => 0x213
 }
 
-module FESTransmiteFlag
-  FES_W_DOU_DOWNLOAD                    = 0x1000
-  FES_R_DOU_UPLOAD                      = 0x2000
-end
+FES_TRANSMITE_FLAG = {
+  :download                    => 0x10,
+  :upload                      => 0x20
+}
 
 FEL_DEVICE_MODE = {
   :AL_VERIFY_DEV_MODE_NULL               => 0x0,
