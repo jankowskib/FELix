@@ -105,7 +105,7 @@ def debug_packet(packet, dir)
           board_id_to_str(p.board), p.fw, FEL_DEVICE_MODE.key(p.mode)]
     elsif packet[0..3] == "AWUS" && packet.length == 13
         p = AWUSBResponse.read(packet)
-        puts "<-- #{p.magic} tag 0x%x, status 0x%x" % [p.tag, p.csw_status]
+        puts "<-- #{p.magic} tag 0x%x, status %s" % [p.tag, CSW_STATUS.key(p.csw_status)]
     else
         return :unk if dir == :unk
         print (dir == :write ? "--> " : "<-- ") << "(#{packet.length}) "
@@ -268,8 +268,19 @@ end
 
 # Erase NAND flash
 # @param handle [LIBUSB::DevHandle] a device handle
+# @return [AWFELVerifyDeviceResponse] device status
+# @raise [String]
 def felix_format_device(handle)
-
+  request = AWFELMessage.new
+  request.address = 0
+  request.len = 16
+  request.flags = FEX_TAGS[:erase] | FEX_TAGS[:finish]
+  data = send_request(handle, request.to_binary_s)
+  if data == nil
+    puts "FAIL".red
+    raise "Failed to send request"
+  end
+  data
 end
 
 $options = {}
@@ -353,7 +364,9 @@ when :device_info # case for FEL_R_VERIFY_DEVICE
   end
 when :format
   begin
-    felix_format_device($handle)
+    data = felix_format_device($handle)
+    resp = AWUSBResponse.read(data)
+    puts "Device response:" << "#{CSW_STATUS.key(resp.csw_status)}".yellow
   rescue => e
     puts "Failed to format device (#{e.message})"
   end

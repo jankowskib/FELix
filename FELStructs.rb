@@ -68,13 +68,12 @@ class AWFELVerifyDeviceResponse < BinData::Record # size 32
 end
 
 class AWFELMessage < BinData::Record # size 16
-  uint16le :cmd
-  uint16le :unk1, :initial_value => 0
+  uint16le :cmd, :initial_value => AWCOMMAND[:FEX_CMD_FES_DOWNLOAD]
+  uint16le :tag, :initial_value => 0
   uint32le :address # also msg_len, start for verify
   # addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL, FES_MEDIA_INDEX_LOG
   # addr + totalTransLen => FES_MEDIA_INDEX_DRAM
   # totalTransLen => 65536 (max chunk)
   uint32le :len
-  # below is very vary (data_tag)
-  uint32le :data_tag
+  uint32le :flags # one or more of FEX_TAGS
 end
