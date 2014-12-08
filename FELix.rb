@@ -168,7 +168,7 @@ def list_devices(devices)
     end
 end
 
-# Sends a request
+# Send a request
 # @param handle [LIBUSB::DevHandle] a device handle
 # @param data binary data
 # @return [AWUSBResponse] or nil if fails
@@ -195,10 +195,10 @@ def send_request(handle, data)
   begin
     r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
     debug_packet(r, :read) if $options[:verbose]
-    puts "Received ".green << r.length.to_s.yellow << " bytes".green if $options[:verbose]
+    puts "Received ".green << "#{r.length}".yellow << " bytes".green if $options[:verbose]
     r
   rescue => e
-    puts "Failed to receive ".red << 13.to_s.yellow << " bytes".red <<
+    puts "Failed to receive ".red << "AWUSBResponse".yellow << " bytes".red <<
     " (" << e.message << ")"
     nil
   end
@@ -218,8 +218,7 @@ def recv_request(handle, len)
     r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
     puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
   rescue => e
-    puts "Failed to send AWUSBRequest ".red <<
-    " (" << e.message << ")"
+    puts "Failed to send AWUSBRequest ".red << " (" << e.message << ")"
     return nil
   end
   # 2. Read data of length we specified in request
@@ -249,19 +248,26 @@ end
 
 # Get device status
 # @param handle [LIBUSB::DevHandle] a device handle
-def fel_get_device_info(handle)
+# @return [AWFELVerifyDeviceResponse] device status
+# @raise [String]
+def felix_get_device_info(handle)
   data = send_request(handle, AWFELStandardRequest.new.to_binary_s)
   if data == nil
     puts "FAIL".red << " Cannot receive device info"
-    return
+    raise "Failed to send request"
   end
   data = recv_request(handle, 32)
   if data == nil or data.length != 32
     puts "FAIL".red << " Cannot receive device info"
-    return
+    raise "Failed to receive device info"
   end
-  response = AWFELVerifyDeviceResponse.read(data)
-  puts response.inspect
+  AWFELVerifyDeviceResponse.read(data)
+end
+
+# Erase NAND flash
+# @param handle [LIBUSB::DevHandle] a device handle
+def felix_format_device(handle)
+
 end
 
 $options = {}
@@ -280,12 +286,11 @@ OptionParser.new do |opts|
         list_devices(devices)
         exit
     end
-
-    opts.on("-d", "--device id", Integer,
+    opts.on("-d", "--device number", Integer,
       "Select device number (default 0)") { |id| $options[:device] = id }
     opts.on("-i", "--info", "Get device info") { $options[:action] = :device_info }
-    opts.on_tail("-v", "--verbose", "Verbose traffic") {
-       $options[:verbose] = true }
+    opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
+    opts.on_tail("-v", "--verbose", "Verbose traffic") { $options[:verbose] = true }
     opts.on_tail("--version", "Show version") do
         puts FELIX_VERSION
         exit
@@ -306,7 +311,7 @@ if devices.size > 1 && $options[:device] == nil # If there's more than one
 else
     $options[:device] ||= 0
     dev = devices[$options[:device]]
-    print "* Connecting to device at " << "port %d, FEL device %d@%d %x:%x" % [
+    print "* Connecting to device at port %d, FEL device %d@%d %x:%x" % [
         dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
         dev.idProduct]
 end
@@ -316,16 +321,32 @@ $usb_in = dev.endpoints.select { |e| e.direction == :in }[0]
 
 begin
     $handle = dev.open
-    #detach_kernel_driver(0).
+    #detach_kernel_driver(0)
     $handle.claim_interface(0)
-    puts "\tOK".green
+    puts "\t[OK]".green
 rescue
-    puts "\tFAIL".red
+    puts "\t[FAIL]".red
     bailout($handle)
 end
 case $options[:action]
 when :device_info # case for FEL_R_VERIFY_DEVICE
-  fel_get_device_info($handle)
+  begin
+    info = felix_get_device_info($handle)
+    info.each_pair do |k, v|
+      print "%-40s" % k.to_s.yellow
+      case k
+      when :board then puts board_id_to_str(v)
+      when :mode then puts FEL_DEVICE_MODE.key(v)
+      when :data_flag, :data_length, :data_start_address then puts "0x%08x" % v
+      else
+        puts "#{v}"
+      end
+    end
+  rescue => e
+    puts "Failed to receive device info (#{e.message})"
+  end
+when :format
+  felix_format_device($handle)
 else
   puts "No action specified"
 end
