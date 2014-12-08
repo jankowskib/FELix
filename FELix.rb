@@ -105,7 +105,8 @@ def debug_packet(packet, dir)
           board_id_to_str(p.board), p.fw, FEL_DEVICE_MODE.key(p.mode)]
     elsif packet[0..3] == "AWUS" && packet.length == 13
         p = AWUSBResponse.read(packet)
-        puts "<-- #{p.magic} tag 0x%x, status %s" % [p.tag, CSW_STATUS.key(p.csw_status)]
+        puts "<-- #{p.magic} tag 0x%x, status %s" % [p.tag, CSW_STATUS.key(
+                                                     p.csw_status)]
     else
         return :unk if dir == :unk
         print (dir == :write ? "--> " : "<-- ") << "(#{packet.length}) "
@@ -147,9 +148,14 @@ def debug_packets(file)
     contents = File.read(file)
     contents.scan(/^.*?{(.*?)};/m) do |packet|
     hstr = ""
-    packet[0].scan(/0x(\w{2})/m) { |hex| hstr << hex[0] }
+    packet[0].scan(/0x([0-9A-Fa-f]{2})/m) { |hex| hstr << hex[0] }
     #Strip USB header
-    packets << hstr.to_byte_string[27..-1]
+    begin
+      packets << hstr.to_byte_string[27..-1]
+    rescue RuntimeError => e
+      puts "Error : (#{e.message}) at #{e.backtrace[0]}"
+      puts "Failed to decode packet: (#{hstr.length / 2}), #{hstr}"
+    end
     end
 
     dir = :unk
