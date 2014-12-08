@@ -66,6 +66,7 @@ FEL_DEVICE_MODE = {
 }
 #TAGS FOR FES_DOWN
 FEX_TAGS = {
+  :none                              => 0x0,
   :data_mask                         => 0x7FFF,
   :dram_mask                         => 0x7F00,
   :dram                              => 0x7F00,

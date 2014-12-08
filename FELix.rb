@@ -24,14 +24,19 @@ require 'bindata'
 require_relative 'FELStructs'
 
 #Routines
-# 1. Write
+# 1. Write (--> send | <-- recv)
 # --> AWUSBRequest(AW_USB_WRITE, len)
 # --> WRITE(len)
 # <-- READ(13) -> AWUSBResponse
 # (then)
-# 2. Read (--> send | <-- recv)
+# 2. Read
 # --> AWUSBRequest(AW_USB_READ, len)
 # <-- READ(len)
+# <-- READ(13) -> AWUSBResponse
+# (then)
+# 3. Read status
+# --> AWUSBRequest(AW_USB_READ, 8)
+# <-- READ(8)
 # <-- READ(13) -> AWUSBResponse
 
 # Flash process (A31s)
@@ -78,6 +83,16 @@ def board_id_to_str(id)
      "?"
     end
 end
+# Convert tag mask to string
+# @param tags [Integer] tag flag
+# @return [String] human readable tags delimetered by |
+def tags_to_s(tags)
+  r = ""
+  FEX_TAGS.each do |k,v|
+    r << "#{k.to_s}|" if tags & v == v
+  end
+  r
+end
 
 # Decode packet
 # @param packet [String] packet data without USB header
@@ -86,45 +101,55 @@ end
 def debug_packet(packet, dir)
     if packet[0..3] == "AWUC" && packet.length == 32
         p = AWUSBRequest.read(packet)
-        print "--> (#{packet.length}) "
+        print "--> (% 5d) " % packet.length
         case p.cmd
         when AW_USB_READ
-            print "AW_USB_READ".yellow
+            print "AWUSBRead".yellow
             dir = :read
         when AW_USB_WRITE
-            print "AW_USB_WRITE".yellow
+            print "AWUSBWrite".yellow
             dir = :write
         else
-            print "AW_UNKNOWN (0x%x)".red % p.type
+            print "AWUnknown (0x%x)".red % p.type
         end
         puts "\t(Prepare for #{dir.to_s} of #{p.len} bytes)"
         #puts p.inspect
     elsif packet[0..7] == "AWUSBFEX"
         p = AWFELVerifyDeviceResponse.read(packet)
-        puts "<-- AWFELVerifyDeviceResponse: %s, FW: %d, mode: %s" % [
-          board_id_to_str(p.board), p.fw, FEL_DEVICE_MODE.key(p.mode)]
+        puts "<-- (% 5d) " % packet.length << "AWFELVerifyDeviceResponse".
+          yellow << "\t%s, FW: %d, mode: %s" % [ board_id_to_str(p.board), p.fw,
+          FEL_DEVICE_MODE.key(p.mode) ]
     elsif packet[0..3] == "AWUS" && packet.length == 13
         p = AWUSBResponse.read(packet)
-        puts "<-- #{p.magic} tag 0x%x, status %s" % [p.tag, CSW_STATUS.key(
-                                                     p.csw_status)]
+        puts "<-- (% 5d) " % packet.length << "AWUSBResponse".yellow <<
+         "\t0x%x, status %s" % [ p.tag, CSW_STATUS.key(p.csw_status) ]
     else
         return :unk if dir == :unk
-        print (dir == :write ? "--> " : "<-- ") << "(#{packet.length}) "
+        print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.length
         if packet.length == 16
             p = AWFELMessage.read(packet)
             case p.cmd
             when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE"
-                                                           .yellow
+              .yellow <<  "(#{AWCOMMAND[:FEL_R_VERIFY_DEVICE]})"
             when AWCOMMAND[:FES_RW_TRANSMITE]
               p = AWFELFESTrasportRequest.read(packet)
-                puts "#{AWCOMMAND.key(p.cmd)}: ".yellow <<
-                  FES_TRANSMITE_FLAG.key(p.direction).to_s <<
-                  ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
-                                                                     p.len]
+              puts "#{AWCOMMAND.key(p.cmd)}: ".yellow <<
+                FES_TRANSMITE_FLAG.key(p.direction).to_s <<
+                ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
+                                                                   p.len]
+            when AWCOMMAND[:FES_DOWNLOAD]
+              p = AWFELMessage.read(packet)
+              puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X) "  % p.cmd <<
+                "tag: #{p.tag}, write %d bytes @ 0x%08x" % [p.len, p.address] <<
+                ", flags #{tags_to_s(p.flags)} 0x%04x" % p.flags
             else
-                puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X):"  % p.cmd <<
+              puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X):"  % p.cmd <<
                 "#{packet.to_hex_string[0..46]}"
             end
+        elsif packet.length == 8
+          p = AWFELStatusResponse.read(packet)
+          puts "AWFELStatusResponse\t".yellow <<
+            "mark #{p.mark}, tag #{p.tag}, state #{p.state}"
         else
             print "\n"
             Hexdump.dump(packet[0..63])
@@ -144,36 +169,36 @@ end
 def debug_packets(file)
   return if file.nil?
 
-    packets = Array.new
-    contents = File.read(file)
-    contents.scan(/^.*?{(.*?)};/m) do |packet|
+  packets = Array.new
+  contents = File.read(file)
+  contents.scan(/^.*?{(.*?)};/m) do |packet|
     hstr = ""
     packet[0].scan(/0x([0-9A-Fa-f]{2})/m) { |hex| hstr << hex[0] }
     #Strip USB header
     begin
-      packets << hstr.to_byte_string[27..-1]
+      packets << hstr.to_byte_string[27..-1] if hstr.to_byte_string[27..-1] != nil
     rescue RuntimeError => e
       puts "Error : (#{e.message}) at #{e.backtrace[0]}"
       puts "Failed to decode packet: (#{hstr.length / 2}), #{hstr}"
     end
-    end
+  end
 
-    dir = :unk
-    packets.each do |packet|
-        next if packet.length < 4
-        dir = debug_packet(packet, dir)
-    end
+  dir = :unk
+  packets.each do |packet|
+      next if packet.length < 4
+      dir = debug_packet(packet, dir)
+  end
 end
 
 # Print out the suitable devices
 # @param devices [Array<LIBUSB::Device>] list of the devices
 # @note the variable i is used for --device parameter
 def list_devices(devices)
-    i = 0
-    devices.each do |d|
-        puts "* %2d: (port %d) FEL device %d@%d %x:%x" % [++i, d.port_number,
-            d.bus_number, d.device_address, d.idVendor, d.idProduct]
-    end
+  i = 0
+  devices.each do |d|
+    puts "* %2d: (port %d) FEL device %d@%d %x:%x" % [++i, d.port_number,
+        d.bus_number, d.device_address, d.idVendor, d.idProduct]
+  end
 end
 
 # Send a request
@@ -318,7 +343,7 @@ end
 
 $options = {}
 puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
-puts "I dont give any warranty on this software"
+puts "Warning:".red << "I don't give any warranty on this software"
 puts "You use it at own risk!"
 puts "----------------------"
 

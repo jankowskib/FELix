@@ -83,5 +83,5 @@ class AWFELMessage < BinData::Record # size 16
   # addr + totalTransLen => FES_MEDIA_INDEX_DRAM
   # totalTransLen => 65536 (max chunk)
   uint32le :len
-  uint32le :flags # one or more of FEX_TAGS
+  uint32le :flags, :initial_value => FEX_TAGS[:none] # one or more of FEX_TAGS
 end
