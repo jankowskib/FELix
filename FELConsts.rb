@@ -67,23 +67,30 @@ FEL_DEVICE_MODE = {
   :AL_VERIFY_DEV_MODE_UPDATE_HOT         => 0x4
 }
 #TAGS FOR FEX_CMD_FES_DOWN
-module FEXTags
-  TAG_DATA_MASK                         = 0x7FFF
-  TAG_DRAM_MASK                         = 0x7F00
-  TAG_DRAM                              = 0x7F00
-  TAG_MBR                               = 0x7F01
-  TAG_UBOOT                             = 0x7F02
-  TAG_BOOT1                             = 0x7F02
-  TAG_BOOT0                             = 0x7F03
-  TAG_ERASE                             = 0x7F04
-  TAG_PMU_SET                           = 0x7F05
-  TAG_UNSEQ_MEM_FOR_READ                = 0x7F06
-  TAG_UNSEQ_MEM_FOR_WRITE               = 0x7F07
-  TAG_FLASH                             = 0x8000
-  TAG_FINISH                            = 0x10000
-  TAG_START                             = 0x20000
-  TAG_MASK                              = 0x30000
-end
+FEX_TAGS = {
+  :data_mask                         => 0x7FFF,
+  :dram_mask                         => 0x7F00,
+  :dram                              => 0x7F00,
+  :mbr                               => 0x7F01,
+  :uboot                             => 0x7F02,
+  :boot1                             => 0x7F02,
+  :boot0                             => 0x7F03,
+  :erase                             => 0x7F04,
+  :pmu_set                           => 0x7F05,
+  :unseq_mem_for_read                => 0x7F06,
+  :unseq_mem_for_write               => 0x7F07,
+  :flash                             => 0x8000,
+  :finish                            => 0x10000,
+  :start                             => 0x20000,
+  :mask                              => 0x30000
+}
+
+#csw_status of AWUSBResponse
+CSW_STATUS = {
+  :ok => 0,
+  :fail => 1
+}
+
 #FES STORAGE TYPE
 module FESMediaType
   FES_MEDIA_INDEX_DRAM                  = 0x0
