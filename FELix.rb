@@ -112,15 +112,17 @@ def debug_packet(packet, dir)
         if packet.length == 16
             p = AWFELMessage.read(packet)
             case p.cmd
-            when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE".yellow
+            when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE"
+                                                           .yellow
             when AWCOMMAND[:FEX_CMD_FES_RW_TRANSMITE]
-                puts "#{AWCOMMAND.key(p.cmd).yellow}: " << (p.data_tag and
-                    FESTransmiteFlag::FES_W_DOU_DOWNLOAD ? "FES_TRANSMITE_W_DOU_DOWNLOAD":
-                    (p.data_tag && FESTransmiteFlag::FES_R_DOU_UPLOAD ?
-                    "FES_TRANSMITE_R_DOU_UPLOAD" : "FES_TRANSMITE_UNKNOWN #{p.flag}"))
+              p = AWFELFESTrasportRequest.read(packet)
+                puts "#{AWCOMMAND.key(p.cmd)}: ".yellow <<
+                  FES_TRANSMITE_FLAG.key(p.direction).to_s <<
+                  ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
+                                                                     p.len]
             else
-                puts "#{AWCOMMAND.key(p.cmd).yellow}: (0x%.2X):" <<
-                "#{packet.to_hex_string[0..46]}" % p.cmd
+                puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X):"  % p.cmd
+                "#{packet.to_hex_string[0..46]}"
             end
         else
             print "\n"
@@ -290,6 +292,10 @@ OptionParser.new do |opts|
       "Select device number (default 0)") { |id| $options[:device] = id }
     opts.on("-i", "--info", "Get device info") { $options[:action] = :device_info }
     opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
+    opts.on("--debug FILE", "Decodes packets from Wireshark dump") do |f|
+      debug_packets(f)
+      exit
+    end
     opts.on_tail("-v", "--verbose", "Verbose traffic") { $options[:verbose] = true }
     opts.on_tail("--version", "Show version") do
         puts FELIX_VERSION
@@ -346,7 +352,11 @@ when :device_info # case for FEL_R_VERIFY_DEVICE
     puts "Failed to receive device info (#{e.message})"
   end
 when :format
-  felix_format_device($handle)
+  begin
+    felix_format_device($handle)
+  rescue => e
+    puts "Failed to format device (#{e.message})"
+  end
 else
   puts "No action specified"
 end
