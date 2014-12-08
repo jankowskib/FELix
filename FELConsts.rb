@@ -67,8 +67,8 @@ FEL_DEVICE_MODE = {
 #TAGS FOR FES_DOWN
 FEX_TAGS = {
   :none                              => 0x0,
-  :data_mask                         => 0x7FFF,
-  :dram_mask                         => 0x7F00,
+#  :data_mask                         => 0x7FFF,
+#  :dram_mask                         => 0x7F00,
   :dram                              => 0x7F00,
   :mbr                               => 0x7F01,
   :uboot                             => 0x7F02,
@@ -81,7 +81,7 @@ FEX_TAGS = {
   :flash                             => 0x8000,
   :finish                            => 0x10000,
   :start                             => 0x20000,
-  :mask                              => 0x30000
+#  :mask                              => 0x30000
 }
 
 #csw_status of AWUSBResponse
