@@ -98,7 +98,7 @@ def debug_packet(packet, dir)
             print "AW_UNKNOWN (0x%x)".red % p.type
         end
         puts "\t(Prepare for #{dir.to_s} of #{p.len} bytes)"
-        # puts packet.inspect
+        #puts p.inspect
     elsif packet[0..7] == "AWUSBFEX"
         p = AWFELVerifyDeviceResponse.read(packet)
         puts "<-- AWFELVerifyDeviceResponse: %s, FW: %d, mode: %s" % [
@@ -229,8 +229,8 @@ def recv_request(handle, len)
     debug_packet(recv_data, :read) if $options[:verbose]
   # 3. Get AWUSBResponse
     r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
-    debug_packet(r, :read) if $options[:verbose]
     puts "Received ".green << "#{r.length}".yellow << " bytes".green if $options[:verbose]
+    debug_packet(r, :read) if $options[:verbose]
     recv_data
   rescue => e
     puts "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
@@ -255,13 +255,11 @@ end
 def felix_get_device_info(handle)
   data = send_request(handle, AWFELStandardRequest.new.to_binary_s)
   if data == nil
-    puts "FAIL".red << " Cannot receive device info"
-    raise "Failed to send request"
+    raise "Failed to send request (data: #{data})"
   end
   data = recv_request(handle, 32)
   if data == nil or data.length != 32
-    puts "FAIL".red << " Cannot receive device info"
-    raise "Failed to receive device info"
+    raise "Failed to receive device info (data: #{data})"
   end
   AWFELVerifyDeviceResponse.read(data)
 end
@@ -269,7 +267,7 @@ end
 # Erase NAND flash
 # @param handle [LIBUSB::DevHandle] a device handle
 # @return [AWFESVerifyStatusResponse] operation status
-# @raise [String]
+# @raise [String] error name
 def felix_format_device(handle)
   request = AWFELMessage.new
   request.address = 0
@@ -277,9 +275,14 @@ def felix_format_device(handle)
   request.flags = FEX_TAGS[:erase] | FEX_TAGS[:finish]
   data = send_request(handle, request.to_binary_s)
   if data == nil
-    puts "FAIL".red
     raise "Failed to send request"
   end
+  data = recv_request(handle, 8)
+  if data == nil or data.length != 8
+    raise "Failed to receive get status"
+  end
+  data = AWFELStatusResponse.read(data)
+  raise "Status failed" if data == nil || data.state == 1
   felix_verify_status(handle, :erase)
 end
 
@@ -296,13 +299,13 @@ def felix_verify_status(handle, tag)
   request.flags = FEX_TAGS[tag]
   data = send_request(handle, request.to_binary_s)
   if data == nil
-    puts "FAIL".red << " Send request failed"
     raise "Failed to send verify request"
   end
   data = recv_request(handle, 12)
-  if data == nil or data.length != 12
-    puts "FAIL".red << " Cannot verify device status"
-    raise "Failed to receive verify request"
+  if data == nil
+    raise "Failed to receive verify request (no data)"
+  elsif data.length != 12
+    raise "Failed to receive verify request (data len #{data.length} != 12)"
   end
   AWFESVerifyStatusResponse.read(data)
 end

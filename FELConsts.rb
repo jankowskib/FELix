@@ -20,7 +20,7 @@ FELIX_VERSION = "1.0 alfa"
 AW_USB_READ                              = 0x11
 AW_USB_WRITE                             = 0x12
 
-#\1: Messages (R -> Read, W -> Write => the operation you must do after send)
+#Messages (R -> Read, W -> Write => the operation you must do after send)
 AWCOMMAND = {
   :FEL_R_VERIFY_DEVICE                   => 0x1,
   :FEL_R_SWITCH_ROLE                     => 0x2,
@@ -90,8 +90,8 @@ CSW_STATUS = {
 }
 
 #FES STORAGE TYPE
-module FESMediaType
-  FES_MEDIA_INDEX_DRAM                  = 0x0
-  FES_MEDIA_INDEX_PHYSICAL              = 0x1
-  FES_MEDIA_INDEX_LOG                   = 0x2
-end
+FES_INDEX = {
+  :dram                              => 0x0,
+  :physical                          => 0x1,
+  :log                               => 0x2
+}
