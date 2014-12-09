@@ -102,5 +102,8 @@ AWUSBStatus = {
 FESIndex = {
   :dram                            => 0x0,
   :physical                        => 0x1,
-  :log                             => 0x2
+  :log                             => 0x2,
+# these two below are usable on boot 1.0
+  :nand                            => 0x2,
+  :card                            => 0x3
 }
