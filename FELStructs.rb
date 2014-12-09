@@ -22,7 +22,7 @@ class AWUSBRequest < BinData::Record # size 32
   uint16le :reserved1, :initial_value => 0
   uint8    :reserved2, :initial_value => 0
   uint8    :cmd_len,   :value => 0xC
-  uint8    :cmd,       :initial_value => AW_USB_WRITE
+  uint8    :cmd,       :initial_value => USBCmd[:write]
   uint8    :reserved3, :initial_value => 0
   uint32le :len2, :value => :len
   array    :reserved, :type => :uint8, :initial_length  => 10, :value => 0
@@ -36,18 +36,18 @@ class AWUSBResponse < BinData::Record # size 13
 end
 
 class AWFELStandardRequest < BinData::Record # size 16
-  uint16le :cmd, :initial_value => AWCOMMAND[:FEL_R_VERIFY_DEVICE]
+  uint16le :cmd, :initial_value => FELCmd[:verify_device]
   uint16le :tag, :initial_value => 0
   array    :reserved, :type => :uint8, :initial_length  => 12, :value => 0
 end
 
 class AWFELFESTrasportRequest < BinData::Record # size 16
-  uint16le :cmd, :value => AWCOMMAND[:FES_RW_TRANSMITE]
+  uint16le :cmd, :value => FESCmd[:transmite]
   uint16le :tag, :initial_value => 0
   uint32le :address
   uint32le :len
-  uint8    :media_index, :initial_value => FES_INDEX[:dram]
-  uint8    :direction, :initial_value => FES_TRANSMITE_FLAG[:download]
+  uint8    :media_index, :initial_value => FESIndex[:dram]
+  uint8    :direction, :initial_value => FESTransmiteFlag[:download]
   array    :reserved, :type => :uint8, :initial_length  => 2, :value => 0
 end
 
@@ -76,12 +76,12 @@ class AWFESVerifyStatusResponse < BinData::Record # size 12
 end
 
 class AWFELMessage < BinData::Record # size 16
-  uint16le :cmd, :initial_value => AWCOMMAND[:FES_DOWNLOAD]
+  uint16le :cmd, :initial_value => FELCmd[:download]
   uint16le :tag, :initial_value => 0
   uint32le :address # also msg_len, start for verify
   # addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL, FES_MEDIA_INDEX_LOG
   # addr + totalTransLen => FES_MEDIA_INDEX_DRAM
   # totalTransLen => 65536 (max chunk)
   uint32le :len
-  uint32le :flags, :initial_value => FEX_TAGS[:none] # one or more of FEX_TAGS
+  uint32le :flags, :initial_value => AWTags[:none] # one or more of FEX_TAGS
 end

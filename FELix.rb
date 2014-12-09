@@ -88,7 +88,7 @@ end
 # @return [String] human readable tags delimetered by |
 def tags_to_s(tags)
   r = ""
-  FEX_TAGS.each do |k,v|
+  AWTags.each do |k,v|
     next if tags>0 && k == :none
     r << "|" if r.length>0 && tags & v == v
     r << "#{k.to_s}" if tags & v == v
@@ -105,10 +105,10 @@ def debug_packet(packet, dir)
         p = AWUSBRequest.read(packet)
         print "--> (% 5d) " % packet.length
         case p.cmd
-        when AW_USB_READ
+        when USBCmd[:read]
             print "AWUSBRead".yellow
             dir = :read
-        when AW_USB_WRITE
+        when USBCmd[:write]
             print "AWUSBWrite".yellow
             dir = :write
         else
@@ -120,37 +120,40 @@ def debug_packet(packet, dir)
         p = AWFELVerifyDeviceResponse.read(packet)
         puts "<-- (% 5d) " % packet.length << "AWFELVerifyDeviceResponse".
           yellow << "\t%s, FW: %d, mode: %s" % [ board_id_to_str(p.board), p.fw,
-          FEL_DEVICE_MODE.key(p.mode) ]
+          AWDeviceMode.key(p.mode) ]
     elsif packet[0..3] == "AWUS" && packet.length == 13
         p = AWUSBResponse.read(packet)
         puts "<-- (% 5d) " % packet.length << "AWUSBResponse".yellow <<
-         "\t0x%x, status %s" % [ p.tag, CSW_STATUS.key(p.csw_status) ]
+         "\t0x%x, status %s" % [ p.tag, AWUSBStatus.key(p.csw_status) ]
     else
         return :unk if dir == :unk
         print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.length
         if packet.length == 16
             p = AWFELMessage.read(packet)
             case p.cmd
-            when AWCOMMAND[:FEL_R_VERIFY_DEVICE] then puts "FEL_R_VERIFY_DEVICE"
-              .yellow <<  " (#{AWCOMMAND[:FEL_R_VERIFY_DEVICE]})"
-            when AWCOMMAND[:FES_RW_TRANSMITE]
+            when FELCmd[:verify_device] then puts "FEL_VERIFY_DEVICE"
+              .yellow <<  " (0x#{FELCmd[:verify_device]})"
+            when FESCmd[:transmite]
               p = AWFELFESTrasportRequest.read(packet)
-              puts "#{AWCOMMAND.key(p.cmd)}: ".yellow <<
-                FES_TRANSMITE_FLAG.key(p.direction).to_s <<
+              puts "FES_#{FESCmd.key(p.cmd).upcase}: ".yellow <<
+                FESTransmiteFlag.key(p.direction).to_s <<
                 ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
                                                                    p.len]
-            when AWCOMMAND[:FES_DOWNLOAD], AWCOMMAND[:FES_R_VERIFY_STATUS]
+            when FESCmd[:download], FESCmd[:verify_status]
               p = AWFELMessage.read(packet)
-              puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X)\n"  % p.cmd <<
+              puts "FES_#{FESCmd.key(p.cmd).upcase}".yellow << " (0x%.2X)\n"  % p.cmd <<
                 "\ttag: #{p.tag}, %d bytes @ 0x%08x" % [p.len, p.address] <<
                 ", flags #{tags_to_s(p.flags)} (0x%04x)" % p.flags
             else
-              puts "#{AWCOMMAND.key(p.cmd)}".yellow << " (0x%.2X):"  % p.cmd <<
-                "#{packet.to_hex_string[0..46]}"
+              print "FEL_#{FELCmd.key(p.cmd).upcase}".
+                yellow if FELCmd.has_value?(p.cmd)
+              print "FES_#{FESCmd.key(p.cmd).upcase}".
+                yellow if FESCmd.has_value?(p.cmd)
+              puts " (0x%.2X):"  % p.cmd << "#{packet.to_hex_string[0..46]}"
             end
         elsif packet.length == 8
           p = AWFELStatusResponse.read(packet)
-          puts "AWFELStatusResponse\t".yellow <<
+          puts "FELStatusResponse\t".yellow <<
             "mark #{p.mark}, tag #{p.tag}, state #{p.state}"
         else
             print "\n"
@@ -170,12 +173,15 @@ end
 # @param file [String] file name
 def debug_packets(file)
   return if file.nil?
-
+  print "Processing...".green
   packets = Array.new
   contents = File.read(file)
+  i = 0
   contents.scan(/^.*?{(.*?)};/m) do |packet|
+    i+=1
     hstr = ""
     packet[0].scan(/0x([0-9A-Fa-f]{2})/m) { |hex| hstr << hex[0] }
+    print "\rProcessing...#{i} found".green
     #Strip USB header
     begin
       packets << hstr.to_byte_string[27..-1] if hstr.to_byte_string[27..-1] != nil
@@ -184,6 +190,7 @@ def debug_packets(file)
       puts "Failed to decode packet: (#{hstr.length / 2}), #{hstr}"
     end
   end
+  puts
 
   dir = :unk
   packets.each do |packet|
@@ -248,7 +255,7 @@ def recv_request(handle, len)
   begin
     request = AWUSBRequest.new
     request.len = len
-    request.cmd = AW_USB_READ
+    request.cmd = USBCmd[:read]
     debug_packet(request.to_binary_s, :write) if $options[:verbose]
     r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
     puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
@@ -315,7 +322,7 @@ def felix_format_device(handle)
   request = AWFELMessage.new
   request.address = 0
   request.len = 16
-  request.flags = FEX_TAGS[:erase] | FEX_TAGS[:finish]
+  request.flags = AWTags[:erase] | AWTags[:finish]
   data = send_request(handle, request.to_binary_s)
   if data == nil
     raise "Failed to send request (data: #{data})"
@@ -333,15 +340,15 @@ end
 
 # Verify last operation status
 # @param handle [LIBUSB::DevHandle] a device handle
-# @param tag [Symbol] operation tag (one or more of FEX_TAGS)
+# @param tag [Symbol] operation tag (zero or more of AWTags)
 # @return [AWFESVerifyStatusResponse] device status
 # @raise [String] error name
 def felix_verify_status(handle, tags)
   request = AWFELMessage.new
-  request.cmd = AWCOMMAND[:FES_R_VERIFY_STATUS]
+  request.cmd = FESCmd[:verify_status]
   request.address = 0
   request.len = 0
-  request.flags = FEX_TAGS[tag]
+  request.flags = AWTags[tag]
   data = send_request(handle, request.to_binary_s)
   if data == nil
     raise "Failed to send verify request"
@@ -359,16 +366,16 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @param address [Integer] memory address to read from
 # @param length [Integer] size of data
-# @param tag [Symbol] operation tag (zero or more of FEX_TAGS)
+# @param tag [Symbol] operation tag (zero or more of AWTags)
 # @return [String] requested data
 # @raise [String] error name
 # @note Use in AL_VERIFY_DEV_MODE_FEL
 def felix_read(handle, address, length, tags=[:none])
   request = AWFELMessage.new
-  request.cmd = AWCOMMAND[:FEL_R_UPLOAD]
+  request.cmd = FELCmd[:FEL_R_UPLOAD]
   request.address = address
   request.len = length
-  tags.each {|t| request.flags |= FEX_TAGS[t]}
+  tags.each {|t| request.flags |= AWTags[t]}
   data = send_request(handle, request.to_binary_s)
   if data == nil
     raise "Failed to send request (#{request.cmd})"
@@ -394,16 +401,16 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @param address [Integer] memory address to read from
 # @param memory [String] data to write
-# @param tag [Symbol] operation tag (zero or more of FEX_TAGS)
+# @param tag [Symbol] operation tag (zero or more of AWTags)
 #
 # @raise [String] error name
 # @note Use in AL_VERIFY_DEV_MODE_FEL
 def felix_write(handle, address, memory, tags=[:none])
   request = AWFELMessage.new
-  request.cmd = AWCOMMAND[:FEL_W_DOWNLOAD]
+  request.cmd = FELCmd[:download]
   request.address = address
   request.len = memory.length
-  tags.each {|t| request.flags |= FEX_TAGS[t]}
+  tags.each {|t| request.flags |= AWTags[t]}
   data = send_request(handle, request.to_binary_s)
   if data == nil
     raise "Failed to send request (#{request.cmd})"
@@ -431,9 +438,12 @@ puts "----------------------"
 begin
   # ComputerInteger: hex strings (0x....) or decimal
   ComputerInteger = /(?:0x[\da-f]+(?:_[\da-f]+)*|\d+(?:_\d+)*)/
+  Modes = [:fes]
+  AddressCmds = [:write, :read]
+  LengthCmds = [:read]
   OptionParser.new do |opts|
       opts.banner = "Usage: FELix.rb action [options]"
-
+      opts.separator "Actions:"
       opts.on("--devices", "List the devices") do |v|
           devices = LIBUSB::Context.new.devices(:idVendor => 0x1f3a,
            :idProduct => 0xefe8)
@@ -441,38 +451,46 @@ begin
           list_devices(devices)
           exit
       end
-      opts.on("-d", "--device number", Integer,
-        "Select device number (default 0)") { |id| $options[:device] = id }
-      opts.on("-i", "--info", "Get device info") { $options[:action] =
+      opts.on("--info", "Get device info") { $options[:action] =
         :device_info }
       opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
       opts.on("--debug path", String, "Decodes packets from Wireshark dump") do |f|
         debug_packets(f)
         exit
       end
-      opts.on("-r", "--read file", String, "Read memory to file. Use with" <<
-      " --address and --length") do |f|
+      opts.on("--mode mode", Modes, "Switch device to one of modes (" <<
+        Modes.join(", ") << ")") do |m|
+        $options[:action] = :switch
+        $options[:mode] = m
+      end
+      opts.on("--read file", String, "Read memory to file. Use with" <<
+        " --address and --length") do |f|
          $options[:action] = :read
          $options[:file] = f
        end
-      opts.on("-w", "--write file", String, "Write file to memory. Use with" <<
-       " --address") do |f|
+      opts.on("--write file", String, "Write file to memory. Use with" <<
+        " --address") do |f|
          $options[:action] = :write
          $options[:file] = f
       end
-      opts.on("-a", "--address addr", ComputerInteger, "Address used for " <<
-      "operation") do |a|
+      opts.on("--version", "Show version") do
+        puts FELIX_VERSION
+        exit
+      end
+      opts.separator "Options:"
+      opts.on("-d", "--device number", Integer,
+      "Select device number (default 0)") { |id| $options[:device] = id }
+
+      opts.on("-a", "--address address", ComputerInteger, "Address (used for" <<
+      " --" << AddressCmds.join(", --") << ")") do |a|
         $options[:address] = a[0..1] == "0x" ? Integer(a, 16) : a.to_i
       end
-      opts.on("-l", "--length len", ComputerInteger, "Length of data") do |l|
+      opts.on("-l", "--length len", ComputerInteger, "Length of data (used " <<
+      "for --" << LengthCmds.join(", --") << ")") do |l|
         $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
       end
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
         $options[:verbose] = true
-      end
-      opts.on_tail("--version", "Show version") do
-        puts FELIX_VERSION
-        exit
       end
   end.parse!
   raise OptionParser::MissingArgument if($options[:action] == :read &&
@@ -481,6 +499,9 @@ begin
     $options[:address] == nil)
 rescue OptionParser::MissingArgument
   puts "Missing argument. Type FELix.rb --help to see usage"
+  exit
+rescue OptionParser::InvalidArgument
+  puts "Invalid argument. Type FELix.rb --help to see usage"
   exit
 end
 
@@ -523,7 +544,7 @@ when :device_info # case for FEL_R_VERIFY_DEVICE
       print "%-40s" % k.to_s.yellow
       case k
       when :board then puts board_id_to_str(v)
-      when :mode then puts FEL_DEVICE_MODE.key(v)
+      when :mode then puts AWDeviceMode.key(v)
       when :data_flag, :data_length, :data_start_address then puts "0x%08x" % v
       else
         puts "#{v}"
@@ -551,7 +572,13 @@ when :write
     data = File.read($options[:file])
     felix_write($handle, $options[:address], data)
   rescue => e
-    puts "Failed to write data (#{e.message}) at #{e.backtrace.flatten}"
+    puts "Failed to write data (#{e.message}) at #{e.backtrace[0]}"
+  end
+when :mode
+  begin
+
+  rescue => e
+    puts "Failed to switch device mode (#{e.message}) at #{e.backtrace[0]}"
   end
 else
   puts "No action specified"
