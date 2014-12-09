@@ -359,11 +359,11 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @param address [Integer] memory address to read from
 # @param length [Integer] size of data
-# @param tag [Symbol] operation tag (one or more of FEX_TAGS)
+# @param tag [Symbol] operation tag (zero or more of FEX_TAGS)
 # @return [String] requested data
 # @raise [String] error name
 # @note Use in AL_VERIFY_DEV_MODE_FEL
-def felix_read(handle, address, length, tags=[])
+def felix_read(handle, address, length, tags=[:none])
   request = AWFELMessage.new
   request.cmd = AWCOMMAND[:FEL_R_UPLOAD]
   request.address = address
@@ -371,13 +371,13 @@ def felix_read(handle, address, length, tags=[])
   tags.each {|t| request.flags |= FEX_TAGS[t]}
   data = send_request(handle, request.to_binary_s)
   if data == nil
-    raise "Failed to send verify request"
+    raise "Failed to send request (#{request.cmd})"
   end
   output = recv_request(handle, length)
   if output == nil
-    raise "Failed to receive verify request (no data)"
+    raise "Failed to receive data (no data)"
   elsif output.length != length
-    raise "Failed to receive verify request (data len #{data.length} != #{length})"
+    raise "Failed to receive data (data len #{data.length} != #{length})"
   end
   data = recv_request(handle, 8)
   if data == nil || data.length != 8
@@ -390,6 +390,38 @@ def felix_read(handle, address, length, tags=[])
   output
 end
 
+# Write data to device memory
+# @param handle [LIBUSB::DevHandle] a device handle
+# @param address [Integer] memory address to read from
+# @param memory [String] data to write
+# @param tag [Symbol] operation tag (zero or more of FEX_TAGS)
+#
+# @raise [String] error name
+# @note Use in AL_VERIFY_DEV_MODE_FEL
+def felix_write(handle, address, memory, tags=[:none])
+  request = AWFELMessage.new
+  request.cmd = AWCOMMAND[:FEL_W_DOWNLOAD]
+  request.address = address
+  request.len = memory.length
+  tags.each {|t| request.flags |= FEX_TAGS[t]}
+  data = send_request(handle, request.to_binary_s)
+  if data == nil
+    raise "Failed to send request (#{request.cmd})"
+  end
+  data = send_request(handle, memory)
+  if data == nil
+    raise "Failed to send data"
+  end
+  data = recv_request(handle, 8)
+  if data == nil || data.length != 8
+    raise "Failed to receive device status (data: #{data})"
+  end
+  status = AWFELStatusResponse.read(data)
+  if status.state > 0
+    raise "Command failed (Status #{status.state})"
+  end
+end
+
 $options = {}
 puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
 puts "Warning:".red << "I don't give any warranty on this software"
@@ -397,6 +429,7 @@ puts "You use it at own risk!"
 puts "----------------------"
 
 begin
+  # ComputerInteger: hex strings (0x....) or decimal
   ComputerInteger = /(?:0x[\da-f]+(?:_[\da-f]+)*|\d+(?:_\d+)*)/
   OptionParser.new do |opts|
       opts.banner = "Usage: FELix.rb action [options]"
@@ -422,6 +455,11 @@ begin
          $options[:action] = :read
          $options[:file] = f
        end
+      opts.on("-w", "--write file", String, "Write file to memory. Use with" <<
+       " --address") do |f|
+         $options[:action] = :write
+         $options[:file] = f
+      end
       opts.on("-a", "--address addr", ComputerInteger, "Address used for " <<
       "operation") do |a|
         $options[:address] = a[0..1] == "0x" ? Integer(a, 16) : a.to_i
@@ -439,6 +477,8 @@ begin
   end.parse!
   raise OptionParser::MissingArgument if($options[:action] == :read &&
     ($options[:length] == nil || $options[:address] == nil))
+  raise OptionParser::MissingArgument if($options[:action] == :write &&
+    $options[:address] == nil)
 rescue OptionParser::MissingArgument
   puts "Missing argument. Type FELix.rb --help to see usage"
   exit
@@ -505,6 +545,13 @@ when :read
     File.open($options[:file], "w") { |f| f.write(data) }
   rescue => e
     puts "Failed to read data (#{e.message}) at #{e.backtrace[0]}"
+  end
+when :write
+  begin
+    data = File.read($options[:file])
+    felix_write($handle, $options[:address], data)
+  rescue => e
+    puts "Failed to write data (#{e.message}) at #{e.backtrace.flatten}"
   end
 else
   puts "No action specified"
