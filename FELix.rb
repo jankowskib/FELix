@@ -275,7 +275,7 @@ def felix_read(handle, address, length, tags=[:none])
     request.cmd = FELCmd[:upload]
     request.address = address
     if length / FELIX_MAX_CHUNK == 0
-      request.len = length % FELIX_MAX_CHUNK
+      request.len = length
     else
       request.len = FELIX_MAX_CHUNK
     end
@@ -298,9 +298,9 @@ def felix_read(handle, address, length, tags=[:none])
     if status.state > 0
       raise "Command failed (Status #{status.state})"
     end
-  result << output
-  length-=request.len
-  address+=request.len
+    result << output
+    length-=request.len
+    address+=request.len
   end
   result
 end
@@ -314,26 +314,37 @@ end
 # @raise [String] error name
 # @note Use in AL_VERIFY_DEV_MODE_FEL
 def felix_write(handle, address, memory, tags=[:none])
-  request = AWFELMessage.new
-  request.cmd = FELCmd[:download]
-  request.address = address
-  request.len = memory.length
-  tags.each {|t| request.flags |= AWTags[t]}
-  data = send_request(handle, request.to_binary_s)
-  if data == nil
-    raise "Failed to send request (#{request.cmd})"
-  end
-  data = send_request(handle, memory)
-  if data == nil
-    raise "Failed to send data"
-  end
-  data = recv_request(handle, 8)
-  if data == nil || data.length != 8
-    raise "Failed to receive device status (data: #{data})"
-  end
-  status = AWFELStatusResponse.read(data)
-  if status.state > 0
-    raise "Command failed (Status #{status.state})"
+  total_len = memory.length
+  start = 0
+  while total_len>0 do
+    request = AWFELMessage.new
+    request.cmd = FELCmd[:download]
+    request.address = address
+    if total_len / FELIX_MAX_CHUNK == 0
+      request.len = total_len
+    else
+      request.len = FELIX_MAX_CHUNK
+    end
+    tags.each {|t| request.flags |= AWTags[t]}
+    data = send_request(handle, request.to_binary_s)
+    if data == nil
+      raise "Failed to send request (#{request.cmd})"
+    end
+    data = send_request(handle, memory[start, request.len])
+    if data == nil
+      raise "Failed to send data"
+    end
+    data = recv_request(handle, 8)
+    if data == nil || data.length != 8
+      raise "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise "Command failed (Status #{status.state})"
+    end
+    start+=request.len
+    total_len-=request.len
+    address+=request.len
   end
 end
 
