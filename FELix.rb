@@ -310,6 +310,7 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @return [AWFESVerifyStatusResponse] operation status
 # @raise [String] error name
+# @note Device must be in FES mode
 def felix_format_device(handle)
   request = AWFELMessage.new
   request.address = 0
@@ -335,7 +336,7 @@ end
 # @param tag [Symbol] operation tag (one or more of FEX_TAGS)
 # @return [AWFESVerifyStatusResponse] device status
 # @raise [String] error name
-def felix_verify_status(handle, tag)
+def felix_verify_status(handle, tags)
   request = AWFELMessage.new
   request.cmd = AWCOMMAND[:FES_R_VERIFY_STATUS]
   request.address = 0
@@ -354,36 +355,94 @@ def felix_verify_status(handle, tag)
   AWFESVerifyStatusResponse.read(data)
 end
 
+# Read memory from device
+# @param handle [LIBUSB::DevHandle] a device handle
+# @param address [Integer] memory address to read from
+# @param length [Integer] size of data
+# @param tag [Symbol] operation tag (one or more of FEX_TAGS)
+# @return [String] requested data
+# @raise [String] error name
+# @note Use in AL_VERIFY_DEV_MODE_FEL
+def felix_read(handle, address, length, tags=[])
+  request = AWFELMessage.new
+  request.cmd = AWCOMMAND[:FEL_R_UPLOAD]
+  request.address = address
+  request.len = length
+  tags.each {|t| request.flags |= FEX_TAGS[t]}
+  data = send_request(handle, request.to_binary_s)
+  if data == nil
+    raise "Failed to send verify request"
+  end
+  output = recv_request(handle, length)
+  if output == nil
+    raise "Failed to receive verify request (no data)"
+  elsif output.length != length
+    raise "Failed to receive verify request (data len #{data.length} != #{length})"
+  end
+  data = recv_request(handle, 8)
+  if data == nil || data.length != 8
+    raise "Failed to receive device status (data: #{data})"
+  end
+  status = AWFELStatusResponse.read(data)
+  if status.state > 0
+    raise "Command failed (Status #{status.state})"
+  end
+  output
+end
+
 $options = {}
 puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
 puts "Warning:".red << "I don't give any warranty on this software"
 puts "You use it at own risk!"
 puts "----------------------"
 
-OptionParser.new do |opts|
-    opts.banner = "Usage: #{ARGV[0]} [options]"
+begin
+  ComputerInteger = /(?:0x[\da-f]+(?:_[\da-f]+)*|\d+(?:_\d+)*)/
+  OptionParser.new do |opts|
+      opts.banner = "Usage: FELix.rb action [options]"
 
-    opts.on("-l", "--list", "List the devices") do |v|
-        devices = LIBUSB::Context.new.devices(:idVendor => 0x1f3a,
-         :idProduct => 0xefe8)
-        puts "No device found in FEL mode!" if devices.empty?
-        list_devices(devices)
+      opts.on("--devices", "List the devices") do |v|
+          devices = LIBUSB::Context.new.devices(:idVendor => 0x1f3a,
+           :idProduct => 0xefe8)
+          puts "No device found in FEL mode!" if devices.empty?
+          list_devices(devices)
+          exit
+      end
+      opts.on("-d", "--device number", Integer,
+        "Select device number (default 0)") { |id| $options[:device] = id }
+      opts.on("-i", "--info", "Get device info") { $options[:action] =
+        :device_info }
+      opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
+      opts.on("--debug path", String, "Decodes packets from Wireshark dump") do |f|
+        debug_packets(f)
         exit
-    end
-    opts.on("-d", "--device number", Integer,
-      "Select device number (default 0)") { |id| $options[:device] = id }
-    opts.on("-i", "--info", "Get device info") { $options[:action] = :device_info }
-    opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
-    opts.on("--debug FILE", "Decodes packets from Wireshark dump") do |f|
-      debug_packets(f)
-      exit
-    end
-    opts.on_tail("-v", "--verbose", "Verbose traffic") { $options[:verbose] = true }
-    opts.on_tail("--version", "Show version") do
+      end
+      opts.on("-r", "--read file", String, "Read memory to file. Use with" <<
+      " --address and --length") do |f|
+         $options[:action] = :read
+         $options[:file] = f
+       end
+      opts.on("-a", "--address addr", ComputerInteger, "Address used for " <<
+      "operation") do |a|
+        $options[:address] = a[0..1] == "0x" ? Integer(a, 16) : a.to_i
+      end
+      opts.on("-l", "--length len", ComputerInteger, "Length of data") do |l|
+        $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
+      end
+      opts.on_tail("-v", "--verbose", "Verbose traffic") do
+        $options[:verbose] = true
+      end
+      opts.on_tail("--version", "Show version") do
         puts FELIX_VERSION
         exit
-    end
-end.parse!
+      end
+  end.parse!
+  raise OptionParser::MissingArgument if($options[:action] == :read &&
+    ($options[:length] == nil || $options[:address] == nil))
+rescue OptionParser::MissingArgument
+  puts "Missing argument. Type FELix.rb --help to see usage"
+  exit
+end
 
 usb = LIBUSB::Context.new
 devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
@@ -439,6 +498,13 @@ when :format
     puts "Device response:" << "#{data.last_error}".yellow
   rescue => e
     puts "Failed to format device (#{e.message})"
+  end
+when :read
+  begin
+    data = felix_read($handle, $options[:address], $options[:length])
+    File.open($options[:file], "w") { |f| f.write(data) }
+  rescue => e
+    puts "Failed to read data (#{e.message}) at #{e.backtrace[0]}"
   end
 else
   puts "No action specified"
