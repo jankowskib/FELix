@@ -269,30 +269,40 @@ end
 # @raise [String] error name
 # @note Use in AL_VERIFY_DEV_MODE_FEL
 def felix_read(handle, address, length, tags=[:none])
-  request = AWFELMessage.new
-  request.cmd = FELCmd[:FEL_R_UPLOAD]
-  request.address = address
-  request.len = length
-  tags.each {|t| request.flags |= AWTags[t]}
-  data = send_request(handle, request.to_binary_s)
-  if data == nil
-    raise "Failed to send request (#{request.cmd})"
+  result = ""
+  while length>0 do
+    request = AWFELMessage.new
+    request.cmd = FELCmd[:upload]
+    request.address = address
+    if length / FELIX_MAX_CHUNK == 0
+      request.len = length % FELIX_MAX_CHUNK
+    else
+      request.len = FELIX_MAX_CHUNK
+    end
+    tags.each {|t| request.flags |= AWTags[t]}
+    data = send_request(handle, request.to_binary_s)
+    if data == nil
+      raise "Failed to send request (#{request.cmd})"
+    end
+    output = recv_request(handle, request.len)
+    if output == nil
+      raise "Failed to receive data (no data)"
+    elsif output.length != request.len
+      raise "Failed to receive data (data len #{data.length} != #{request.len})"
+    end
+    data = recv_request(handle, 8)
+    if data == nil || data.length != 8
+      raise "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise "Command failed (Status #{status.state})"
+    end
+  result << output
+  length-=request.len
+  address+=request.len
   end
-  output = recv_request(handle, length)
-  if output == nil
-    raise "Failed to receive data (no data)"
-  elsif output.length != length
-    raise "Failed to receive data (data len #{data.length} != #{length})"
-  end
-  data = recv_request(handle, 8)
-  if data == nil || data.length != 8
-    raise "Failed to receive device status (data: #{data})"
-  end
-  status = AWFELStatusResponse.read(data)
-  if status.state > 0
-    raise "Command failed (Status #{status.state})"
-  end
-  output
+  result
 end
 
 # Write data to device memory
@@ -490,7 +500,7 @@ when :read
     data = felix_read($handle, $options[:address], $options[:length])
     File.open($options[:file], "w") { |f| f.write(data) }
   rescue => e
-    puts "Failed to read data (#{e.message}) at #{e.backtrace[0]}"
+    puts "Failed to read data (#{e.message}) at #{e.backtrace.flatten}"
   end
 when :write
   begin
