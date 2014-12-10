@@ -101,8 +101,8 @@ def debug_packet(packet, dir)
     #puts p.inspect
   elsif packet[0..7] == "AWUSBFEX"
     p = AWFELVerifyDeviceResponse.read(packet)
-    puts "<-- (% 5d) " % packet.length << "AWFELVerifyDeviceResponse".
-    yellow << "\t%s, FW: %d, mode: %s" % [ board_id_to_str(p.board), p.fw,
+    puts "<-- (% 5d) " % packet.length << "FELVerifyDeviceResponse".
+    light_blue << "\t%s, FW: %d, mode: %s" % [ board_id_to_str(p.board), p.fw,
       AWDeviceMode.key(p.mode) ]
   elsif packet[0..3] == "AWUS" && packet.length == 13
     p = AWUSBResponse.read(packet)
@@ -115,10 +115,10 @@ def debug_packet(packet, dir)
       p = AWFELMessage.read(packet)
       case p.cmd
       when FELCmd[:verify_device] then puts "FELVerifyDevice"
-        .yellow <<  " (0x#{FELCmd[:verify_device]})"
+        .light_blue <<  " (0x#{FELCmd[:verify_device]})"
       when FESCmd[:transmite]
         p = AWFELFESTrasportRequest.read(packet)
-        puts "FES#{FESCmd.key(p.cmd).camelize}: ".yellow <<
+        puts "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue <<
         FESTransmiteFlag.key(p.direction).to_s <<
         ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
           p.len]
@@ -126,17 +126,17 @@ def debug_packet(packet, dir)
         FELCmd[:upload], FESCmd[:run], FELCmd[:run]
         p = AWFELMessage.read(packet)
         print "FEL#{FELCmd.key(p.cmd).camelize}".
-        yellow if FELCmd.has_value?(p.cmd)
+        light_blue if FELCmd.has_value?(p.cmd)
         print "FES#{FESCmd.key(p.cmd).camelize}".
-        yellow if FESCmd.has_value?(p.cmd)
+        light_blue if FESCmd.has_value?(p.cmd)
         puts " (0x%.2X)\n"  % p.cmd <<
         "\ttag: #{p.tag}, %d bytes @ 0x%08x" % [p.len, p.address] <<
         ", flags #{tags_to_s(p.flags)} (0x%04x)" % p.flags
       else
         print "FEL#{FELCmd.key(p.cmd).camelize}".
-        yellow if FELCmd.has_value?(p.cmd)
+        light_blue if FELCmd.has_value?(p.cmd)
         print "FES#{FESCmd.key(p.cmd).camelize}".
-        yellow if FESCmd.has_value?(p.cmd)
+        light_blue if FESCmd.has_value?(p.cmd)
         if FESCmd.has_value?(p.cmd) || FELCmd.has_value?(p.cmd)
           puts " (0x%.2X): "  % p.cmd << "#{packet.to_hex_string[0..46]}"
         else
