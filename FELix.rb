@@ -68,7 +68,7 @@ require_relative 'FELHelpers'
 # -->                                                 ...
 # --> (16) FES_DOWN (0x206): 06 02 00 00 |00 a4 00 00| 00 04 00 00 |00 00 01 00 SUNXI_EFEX_TAG_FINISH
 
-# Flash process (A23) (FEL)
+# Flash process (A23, A31, boot v2) (FEL)
 # Some important info about memory
 # 0x2000 - 0x6000: INIT_CODE (16384 bytes)
 # 0x7010 - 0x7D00: FEL_MEMORY (3312 bytes)
@@ -89,13 +89,12 @@ require_relative 'FELHelpers'
 # 4. FEL_VERIFY_DEVICE
 # 5. FEL_DOWNLOAD: Send 16 bytes of data (filed 0x00) at 0x7210 (SYS_PARA_LOG)
 # 6. FEL_DOWNLOAD: Send 6496 bytes of data (fes1.fex) at 0x2000 (INIT_CODE)
-# 7. FEL_RUN: Run code at 0x2000 (fes1.fex)
+# 7. FEL_RUN: Run code at 0x2000 (fes1.fex) => inits dram
 # 8. FEL_UPLOAD: Get 136 bytes of data (DRAM...) from 0x7210 (SYS_PARA_LOG)
 # 9. FEL_DOWNLOAD(12 times because u-boot.fex is 0xBC000 bytes): Send (u-boot.fex) 0x4A000000 in 65536 bytes chunks
 #    last chunk is 49152 bytes and ideally starts at config.fex data
-# 10.FEL_RUN: Run code at 0x4A000000 (u-boot.fex)
-# *** Ask user if he would like to do format or upgrade
-#
+# 10.FEL_RUN: Run code at 0x4A000000 (u-boot.fex) => mode: srv, you can send FES commands now
+# *** Flash tool ask user if he would like to do format or upgrade
 
 # Print out the suitable devices
 # @param devices [Array<LIBUSB::Device>] list of the devices
@@ -457,14 +456,18 @@ $usb_out = dev.endpoints.select { |e| e.direction == :out }[0]
 $usb_in = dev.endpoints.select { |e| e.direction == :in }[0]
 
 begin
-    $handle = dev.open
-    #detach_kernel_driver(0)
-    $handle.claim_interface(0)
-    puts "\t[OK]".green
+  $handle = dev.open
+  #detach_kernel_driver(0)
+  $handle.claim_interface(0)
+  puts "\t[OK]".green
+rescue LIBUSB::ERROR_NOT_SUPPORTED
+  puts "\t[FAIL]".red
+  puts "Error: You must install libusb filter on your usb device driver"
+  bailout($handle)
 rescue => e
-    puts "\t[FAIL]".red
-    puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
-    bailout($handle)
+  puts "\t[FAIL]".red
+  puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
+  bailout($handle)
 end
 
 case $options[:action]
