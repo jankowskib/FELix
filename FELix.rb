@@ -97,6 +97,37 @@ require_relative 'FELHelpers'
 # *** Ask user if he would like to do format or upgrade
 #
 
+class LIBUSB::Transfer
+  # Clear the current data buffer.
+  def free_buffer
+    if @buffer
+      @buffer.free
+      @buffer = nil
+      @transfer[:buffer] = nil
+      @transfer[:length] = 0
+    end
+  end
+
+  # Allocate +len+ bytes of data buffer for input transfer.
+  #
+  # @param [Fixnum]  len  Number of bytes to allocate
+  # @param [String, nil] data  some data to initialize the buffer with
+  def alloc_buffer(len, data=nil)
+    if !@buffer || len>@buffer.size
+      free_buffer if @buffer
+      @buffer = FFI::MemoryPointer.new(len, 1, false)
+    end
+    @buffer.put_bytes(0, data) if data
+    @transfer[:buffer] = @buffer
+    @transfer[:length] = len
+  end
+
+  # Set output data that should be sent.
+  def buffer=(data)
+    alloc_buffer(data.bytesize, data)
+  end
+end
+
 # Print out the suitable devices
 # @param devices [Array<LIBUSB::Device>] list of the devices
 # @note the variable i is used for --device parameter
@@ -114,34 +145,24 @@ end
 # @return [AWUSBResponse] or nil if fails
 def send_request(handle, data)
 # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
-  begin
-    request = AWUSBRequest.new
-    request.len = data.length
-    debug_packet(request.to_binary_s, :write) if $options[:verbose]
-    r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
-     $usb_out)
-    puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
-
+  request = AWUSBRequest.new
+  request.len = data.length
+  debug_packet(request.to_binary_s, :write) if $options[:verbose]
+  r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
+   $usb_out)
+  puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
 # 2. Send a proper data
-    debug_packet(data, :write) if $options[:verbose]
-    r = handle.bulk_transfer(:dataOut => data, :endpoint => $usb_out)
-    puts "Sent ".green << data.length.to_s.yellow << " bytes".green if $options[:verbose]
-  rescue => e
-    puts "Failed to send ".red << data.length.to_s.yellow << " bytes".red <<
-    " (" << e.message << ")"
-    return nil
-  end
+  debug_packet(data, :write) if $options[:verbose]
+  r2 = handle.bulk_transfer(:dataOut => data, :endpoint => $usb_out)
+  puts "Sent ".green << r2.to_s.yellow << " bytes".green if $options[:verbose]
 # 3. Get AWUSBResponse
-  begin
-    r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
-    debug_packet(r, :read) if $options[:verbose]
-    puts "Received ".green << "#{r.length}".yellow << " bytes".green if $options[:verbose]
-    r
-  rescue => e
-    puts "Failed to receive ".red << "AWUSBResponse".yellow << " bytes".red <<
-    " (" << e.message << ")"
-    nil
-  end
+  r3 = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
+  debug_packet(r3, :read) if $options[:verbose]
+  puts "Received ".green << "#{r3.length}".yellow << " bytes".green if $options[:verbose]
+  r3
+rescue => e
+  raise "Failed to send ".red << "#{data.length}".yellow << " bytes".red <<
+  " (" << e.message << ")"
 end
 
 # Read data
@@ -149,33 +170,24 @@ end
 # @param len expected length of data
 # @return [String] binary data or nil if fail
 def recv_request(handle, len)
-  # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
-  begin
-    request = AWUSBRequest.new
-    request.len = len
-    request.cmd = USBCmd[:read]
-    debug_packet(request.to_binary_s, :write) if $options[:verbose]
-    r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
-    puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
-  rescue => e
-    puts "Failed to send AWUSBRequest ".red << " (" << e.message << ")"
-    return nil
-  end
-  # 2. Read data of length we specified in request
-  begin
-    recv_data = handle.bulk_transfer(:dataIn => len, :endpoint => $usb_in)
-    debug_packet(recv_data, :read) if $options[:verbose]
-  # 3. Get AWUSBResponse
-    r = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
-    puts "Received ".green << "#{r.length}".yellow << " bytes".green if $options[:verbose]
-    debug_packet(r, :read) if $options[:verbose]
-    recv_data
-  rescue => e
-    puts "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
-    " (" << e.message << ")"
-    nil
-  end
-
+# 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
+  request = AWUSBRequest.new
+  request.len = len
+  request.cmd = USBCmd[:read]
+  debug_packet(request.to_binary_s, :write) if $options[:verbose]
+  r = handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => $usb_out)
+  puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
+# 2. Read data of length we specified in request
+  recv_data = handle.bulk_transfer(:dataIn => len, :endpoint => $usb_in)
+  debug_packet(recv_data, :read) if $options[:verbose]
+# 3. Get AWUSBResponse
+  response = handle.bulk_transfer(:dataIn => 13, :endpoint => $usb_in)
+  puts "Received ".green << "#{response.length}".yellow << " bytes".green if $options[:verbose]
+  debug_packet(response, :read) if $options[:verbose]
+  recv_data
+rescue => e
+  raise "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
+  " (" << e.message << ")"
 end
 
 
@@ -205,9 +217,7 @@ def felix_get_device_info(handle)
     raise "Failed to receive device status (data: #{data})"
   end
   status = AWFELStatusResponse.read(data)
-  if status.state > 0
-    raise "Command failed (Status #{status.state})"
-  end
+  raise "Command failed (Status #{status.state})" if status.state > 0
   info
 end
 
@@ -270,36 +280,35 @@ end
 # @note Use in AL_VERIFY_DEV_MODE_FEL
 def felix_read(handle, address, length, tags=[:none])
   result = ""
-  while length>0 do
+  remain_len = length
+  while remain_len>0
     request = AWFELMessage.new
     request.cmd = FELCmd[:upload]
     request.address = address
-    if length / FELIX_MAX_CHUNK == 0
-      request.len = length
+    if remain_len / FELIX_MAX_CHUNK == 0
+      request.len = remain_len
     else
       request.len = FELIX_MAX_CHUNK
     end
     tags.each {|t| request.flags |= AWTags[t]}
     data = send_request(handle, request.to_binary_s)
-    if data == nil
-      raise "Failed to send request (#{request.cmd})"
-    end
+    raise "Failed to send request (response len: #{data.length} !=" <<
+      " 13)" if data.length != 13
+
     output = recv_request(handle, request.len)
-    if output == nil
-      raise "Failed to receive data (no data)"
-    elsif output.length != request.len
-      raise "Failed to receive data (data len #{data.length} != #{request.len})"
+
+    # Rescue if we received AWUSBResponse
+    output = recv_request(handle, request.len) if output.length !=
+     request.len && output.length == 13
+    if output.length != request.len
+      raise "Data size mismatch (data len #{output.length} != #{request.len})"
     end
-    data = recv_request(handle, 8)
-    if data == nil || data.length != 8
-      raise "Failed to receive device status (data: #{data})"
-    end
-    status = AWFELStatusResponse.read(data)
-    if status.state > 0
-      raise "Command failed (Status #{status.state})"
-    end
+    status = recv_request(handle, 8)
+    raise "Failed to get device status (data: #{status})" if status.length != 8
+    fel_status = AWFELStatusResponse.read(status)
+    raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0
     result << output
-    length-=request.len
+    remain_len-=request.len
     address+=request.len
   end
   result
@@ -316,7 +325,7 @@ end
 def felix_write(handle, address, memory, tags=[:none])
   total_len = memory.length
   start = 0
-  while total_len>0 do
+  while total_len>0
     request = AWFELMessage.new
     request.cmd = FELCmd[:download]
     request.address = address
@@ -332,7 +341,7 @@ def felix_write(handle, address, memory, tags=[:none])
     end
     data = send_request(handle, memory[start, request.len])
     if data == nil
-      raise "Failed to send data"
+      raise "Failed to send data (#{start}/#{memory.length})"
     end
     data = recv_request(handle, 8)
     if data == nil || data.length != 8
@@ -380,7 +389,7 @@ puts "----------------------"
 
 begin
   # ComputerInteger: hex strings (0x....) or decimal
-  ComputerInteger = /(?:0x[\da-f]+(?:_[\da-f]+)*|\d+(?:_\d+)*)/
+  ComputerInteger = /(?:0x[\da-fA-F]+(?:_[\da-fA-F]+)*|\d+(?:_\d+)*)/
   Modes = [:fes]
   AddressCmds = [:write, :read, :run]
   LengthCmds = [:read]
@@ -478,10 +487,12 @@ begin
     #detach_kernel_driver(0)
     $handle.claim_interface(0)
     puts "\t[OK]".green
-rescue
+rescue => e
     puts "\t[FAIL]".red
+    puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
     bailout($handle)
 end
+
 case $options[:action]
 when :device_info # case for FEL_R_VERIFY_DEVICE
   begin
@@ -508,28 +519,35 @@ when :format
   end
 when :read
   begin
+    print "* Reading data (#{$options[:length]} bytes)" unless $options[:verbose]
     data = felix_read($handle, $options[:address], $options[:length])
     File.open($options[:file], "w") { |f| f.write(data) }
+    puts "\t[OK]".green unless $options[:verbose]
   rescue => e
-    puts "Failed to read data (#{e.message}) at #{e.backtrace.flatten}"
+    puts "\t[FAIL]".red unless $options[:verbose]
+    puts "Failed to read data: #{e.message} at #{e.backtrace.join("\n")}"
   end
 when :write
   begin
+    print "* Writing data" unless $options[:verbose]
     data = File.read($options[:file])
+    print " (#{data.length} bytes)" unless $options[:verbose]
     felix_write($handle, $options[:address], data)
+    puts "\t[OK]".green unless $options[:verbose]
   rescue => e
-    puts "Failed to write data (#{e.message}) at #{e.backtrace[0]}"
+    puts "\t[FAIL]".red unless $options[:verbose]
+    puts "Failed to write data: #{e.message} at #{e.backtrace.join("\n")}"
   end
 when :mode
   begin
   rescue => e
-    puts "Failed to switch device mode (#{e.message}) at #{e.backtrace[0]}"
+    puts "Failed to switch device mode: #{e.message} at #{e.backtrace.join("\n")}"
   end
 when :run
   begin
     felix_run($handle, $options[:address])
   rescue => e
-    puts "Failed to switch device mode (#{e.message}) at #{e.backtrace[0]}"
+    puts "Failed to switch device mode: #{e.message} at #{e.backtrace.join("\n")}"
   end
 else
   puts "No action specified"
