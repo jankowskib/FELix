@@ -14,6 +14,29 @@
 #   limitations under the License.
 #
 
+# Change the way library allocs memory to avoid nasty memory segmentation
+class LIBUSB::Transfer
+  # Allocate +len+ bytes of data buffer for input transfer.
+  #
+  # @param [Fixnum]  len  Number of bytes to allocate
+  # @param [String, nil] data  some data to initialize the buffer with
+  def alloc_buffer(len, data=nil)
+    if !@buffer || len>@buffer.size
+      free_buffer if @buffer
+      # HACK: Avoid crash when memory is reallocated
+      @buffer = FFI::MemoryPointer.new(FELIX_MAX_CHUNK, 1, false)
+    end
+    @buffer.put_bytes(0, data) if data
+    @transfer[:buffer] = @buffer
+    @transfer[:length] = len
+  end
+
+  # Set output data that should be sent.
+  def buffer=(data)
+    alloc_buffer(data.bytesize, data)
+  end
+end
+
 class String
   def camelize
       self.gsub(/\/(.?)/) { "::" + $1.upcase }.gsub(/(^|_)(.)/) { $2.upcase }

@@ -97,37 +97,6 @@ require_relative 'FELHelpers'
 # *** Ask user if he would like to do format or upgrade
 #
 
-class LIBUSB::Transfer
-  # Clear the current data buffer.
-  def free_buffer
-    if @buffer
-      @buffer.free
-      @buffer = nil
-      @transfer[:buffer] = nil
-      @transfer[:length] = 0
-    end
-  end
-
-  # Allocate +len+ bytes of data buffer for input transfer.
-  #
-  # @param [Fixnum]  len  Number of bytes to allocate
-  # @param [String, nil] data  some data to initialize the buffer with
-  def alloc_buffer(len, data=nil)
-    if !@buffer || len>@buffer.size
-      free_buffer if @buffer
-      @buffer = FFI::MemoryPointer.new(len, 1, false)
-    end
-    @buffer.put_bytes(0, data) if data
-    @transfer[:buffer] = @buffer
-    @transfer[:length] = len
-  end
-
-  # Set output data that should be sent.
-  def buffer=(data)
-    alloc_buffer(data.bytesize, data)
-  end
-end
-
 # Print out the suitable devices
 # @param devices [Array<LIBUSB::Device>] list of the devices
 # @note the variable i is used for --device parameter
@@ -194,8 +163,13 @@ end
 # Clean up on and finish program
 # @param handle [LIBUSB::DevHandle] a device handle
 def bailout(handle)
+  print "* Finishing"
   handle.close if handle
+  puts "\t[OK]".green
   exit
+rescue => e
+  puts "\t[FAIL]".red
+  puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
 end
 
 # Get device status
