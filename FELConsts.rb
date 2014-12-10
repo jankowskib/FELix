@@ -15,7 +15,7 @@
 #
 
 FELIX_VERSION = "1.0 alfa"
-FELIX_MAX_CHUNK = 65535
+FELIX_MAX_CHUNK = 65536
 
 #AWUSBRequest type
 USBCmd = {
