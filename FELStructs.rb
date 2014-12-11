@@ -85,3 +85,33 @@ class AWFELMessage < BinData::Record # size 16
   uint32le :len
   uint32le :flags, :initial_value => AWTags[:none] # one or more of FEX_TAGS
 end
+
+class AWDRAMData < BinData::Record # size 136?
+  string   :magic, :length => 4, :initial_value => "DRAM"
+  uint32le :unk
+  uint32le :dram_clk
+  uint32le :dram_type
+  uint32le :dram_zq
+  uint32le :dram_odt_en
+  uint32le :dram_para1
+  uint32le :dram_para2
+  uint32le :dram_mr0
+  uint32le :dram_mr1
+  uint32le :dram_mr2
+  uint32le :dram_mr3
+  uint32le :dram_tpr0
+  uint32le :dram_tpr1
+  uint32le :dram_tpr2
+  uint32le :dram_tpr3
+  uint32le :dram_tpr4
+  uint32le :dram_tpr5
+  uint32le :dram_tpr6
+  uint32le :dram_tpr7
+  uint32le :dram_tpr8
+  uint32le :dram_tpr9
+  uint32le :dram_tpr10
+  uint32le :dram_tpr11
+  uint32le :dram_tpr12
+  uint32le :dram_tpr13
+  array    :dram_unknown, :type => :uint32le, :read_until => :eof
+end

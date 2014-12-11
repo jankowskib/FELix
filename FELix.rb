@@ -224,12 +224,12 @@ end
 # @param tag [Symbol] operation tag (zero or more of AWTags)
 # @return [AWFESVerifyStatusResponse] device status
 # @raise [String] error name
-def felix_verify_status(handle, tags)
+def felix_verify_status(handle, tags=[:none])
   request = AWFELMessage.new
   request.cmd = FESCmd[:verify_status]
   request.address = 0
   request.len = 0
-  request.flags = AWTags[tag]
+  tags.each {|t| request.flags |= AWTags[t]}
   data = send_request(handle, request.to_binary_s)
   if data == nil
     raise "Failed to send verify request"

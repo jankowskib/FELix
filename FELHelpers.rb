@@ -108,6 +108,10 @@ def debug_packet(packet, dir)
     p = AWUSBResponse.read(packet)
     puts "<-- (% 5d) " % packet.length << "AWUSBResponse".yellow <<
     "\t0x%x, status %s" % [ p.tag, AWUSBStatus.key(p.csw_status) ]
+  elsif packet[0..3] == "DRAM" && packet.length == 136
+    p = AWDRAMData.read(packet)
+    puts "<-- (% 5d) " % packet.length << "AWDRAMData".light_blue
+    p p
   else
     return :unk if dir == :unk
     print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.length
