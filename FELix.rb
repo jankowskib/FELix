@@ -88,12 +88,18 @@ require_relative 'FELHelpers'
 # 5. FEL_DOWNLOAD: Send 256 bytes of data (0x00000000, rest 0xCC) at 0x7E00 (data_start_address)
 # 4. FEL_VERIFY_DEVICE
 # 5. FEL_DOWNLOAD: Send 16 bytes of data (filed 0x00) at 0x7210 (SYS_PARA_LOG)
+# => It's performed to clean FES helper log
 # 6. FEL_DOWNLOAD: Send 6496 bytes of data (fes1.fex) at 0x2000 (INIT_CODE)
 # 7. FEL_RUN: Run code at 0x2000 (fes1.fex) => inits dram
 # 8. FEL_UPLOAD: Get 136 bytes of data (DRAM...) from 0x7210 (SYS_PARA_LOG)
-# 9. FEL_DOWNLOAD(12 times because u-boot.fex is 0xBC000 bytes): Send (u-boot.fex) 0x4A000000 in 65536 bytes chunks
-#    last chunk is 49152 bytes and ideally starts at config.fex data
-# 10.FEL_RUN: Run code at 0x4A000000 (u-boot.fex) => mode: srv, you can send FES commands now
+# => After "DRAM" + 0x00000001, there's 32 dword with dram params
+# 9. FEL_DOWNLOAD(12 times because u-boot.fex is 0xBC000 bytes):
+# => Send (u-boot.fex) 0x4A000000 in 65536 bytes; hunks, last chunk is 49152
+# => bytes and ideally starts at config.fex data
+# => *** VERY IMPORTANT ***: There's set a flag (0x10) at 0xE0 byte of u-boot.
+# => Otherwise device will start normally after start of u-boot
+# 10.FEL_RUN: Run code at 0x4A000000 (u-boot.fex; its called also fes2)
+# => mode: srv, you can send FES commands now
 # *** Flash tool ask user if he would like to do format or upgrade
 
 # Print out the suitable devices
@@ -229,7 +235,7 @@ def felix_verify_status(handle, tags)
   request.cmd = FESCmd[:verify_status]
   request.address = 0
   request.len = 0
-  request.flags = AWTags[tag]
+  request.flags = AWTags[tags]
   data = send_request(handle, request.to_binary_s)
   if data == nil
     raise "Failed to send verify request"
@@ -489,10 +495,12 @@ when :device_info # case for FEL_R_VERIFY_DEVICE
   end
 when :format
   begin
+    print "* Formating NAND" unless $options[:verbose]
     data = felix_format_device($handle)
-    puts "Device response:" << "#{data.last_error}".yellow
+    puts "\t[OK]".green unless $options[:verbose]
   rescue => e
-    puts "Failed to format device (#{e.message})"
+    puts "\t[FAIL]".red unless $options[:verbose]
+    puts "Failed to format device (#{e.message}) at #{e.backtrace.join("\n")}"
   end
 when :read
   begin
