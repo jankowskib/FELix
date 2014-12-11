@@ -401,6 +401,10 @@ begin
          $options[:action] = :write
          $options[:file] = f
       end
+      opts.on("--request id", ComputerInteger, "Send a standard request") do |f|
+        $options[:action] = :request
+        $options[:request] = f[0..1] == "0x" ? Integer(f, 16) : f.to_i
+      end
       opts.on("--version", "Show version") do
         puts FELIX_VERSION
         exit
@@ -532,16 +536,31 @@ when :write
     puts "\t[FAIL]".red unless $options[:verbose]
     puts "Failed to write data: #{e.message} at #{e.backtrace.join("\n")}"
   end
-when :mode
-  begin
-  rescue => e
-    puts "Failed to switch device mode: #{e.message} at #{e.backtrace.join("\n")}"
-  end
 when :run
   begin
     felix_run($handle, $options[:address])
   rescue => e
-    puts "Failed to switch device mode: #{e.message} at #{e.backtrace.join("\n")}"
+    puts "Failed to execute: #{e.message} at #{e.backtrace.join("\n")}"
+  end
+when :request
+  begin
+    request = AWFELMessage.new
+    request.cmd = $options[:request]
+    request.len = 0
+    data = send_request($handle, request.to_binary_s)
+    raise "Failed to send request (response len: #{data.length} !=" <<
+    " 13)" if data.length != 13
+
+    output = recv_request($handle, FELIX_MAX_CHUNK)
+    Hexdump.dump output
+
+    status = recv_request($handle, 8)
+    raise "Failed to get device status (data: #{status})" if status.length != 8
+    fel_status = AWFELStatusResponse.read(status)
+    raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0  
+  rescue => e
+    puts "Failed to send a request(#{$options[:request]}): #{e.message}" <<
+      " at #{e.backtrace.join("\n")}"
   end
 else
   puts "No action specified"
