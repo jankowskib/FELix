@@ -198,7 +198,7 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @return [AWFESVerifyStatusResponse] operation status
 # @raise [String] error name
-# @note Device must be in FES mode
+# @note Use only in AWDeviceMode[:srv]
 def felix_format_device(handle)
   request = AWFELMessage.new
   request.address = 0
@@ -221,9 +221,10 @@ end
 
 # Verify last operation status
 # @param handle [LIBUSB::DevHandle] a device handle
-# @param tag [Symbol] operation tag (zero or more of AWTags)
+# @param tags [Symbol] operation tag (zero or more of AWTags)
 # @return [AWFESVerifyStatusResponse] device status
 # @raise [String] error name
+# @note Use only in AWDeviceMode[:fes]
 def felix_verify_status(handle, tags=[:none])
   request = AWFELMessage.new
   request.cmd = FESCmd[:verify_status]
@@ -247,16 +248,17 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @param address [Integer] memory address to read from
 # @param length [Integer] size of data
-# @param tag [Symbol] operation tag (zero or more of AWTags)
+# @param tags [Array<AWTags>] operation tag (zero or more of AWTags)
+# @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
 # @return [String] requested data
 # @raise [String] error name
-# @note Use in AL_VERIFY_DEV_MODE_FEL
-def felix_read(handle, address, length, tags=[:none])
+def felix_read(handle, address, length, tags=[:none], mode=:fel)
   result = ""
   remain_len = length
   while remain_len>0
     request = AWFELMessage.new
-    request.cmd = FELCmd[:upload]
+    request.cmd = FELCmd[:upload] if mode == :fel
+    request.cmd = FESCmd[:upload] if mode == :fes
     request.address = address
     if remain_len / FELIX_MAX_CHUNK == 0
       request.len = remain_len
@@ -273,6 +275,9 @@ def felix_read(handle, address, length, tags=[:none])
     # Rescue if we received AWUSBResponse
     output = recv_request(handle, request.len) if output.length !=
      request.len && output.length == 13
+    # Rescue if we received AWFELStatusResponse
+    output = recv_request(handle, request.len) if output.length !=
+     request.len && output.length == 8
     if output.length != request.len
       raise "Data size mismatch (data len #{output.length} != #{request.len})"
     end
@@ -291,16 +296,16 @@ end
 # @param handle [LIBUSB::DevHandle] a device handle
 # @param address [Integer] place in memory to write
 # @param memory [String] data to write
-# @param tag [Symbol] operation tag (zero or more of AWTags)
-#
+# @param tags [Array<AWTags>] operation tag (zero or more of AWTags)
+# @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
 # @raise [String] error name
-# @note Use in AL_VERIFY_DEV_MODE_FEL
-def felix_write(handle, address, memory, tags=[:none])
+def felix_write(handle, address, memory, tags=[:none], mode=:fel)
   total_len = memory.length
   start = 0
   while total_len>0
     request = AWFELMessage.new
-    request.cmd = FELCmd[:download]
+    request.cmd = FELCmd[:download] if mode == :fel
+    request.cmd = FESCmd[:download] if mode == :fes
     request.address = address
     if total_len / FELIX_MAX_CHUNK == 0
       request.len = total_len
@@ -335,7 +340,7 @@ end
 # @param address [Integer] memory address to read from
 # @raise [String] error name
 #
-# @note Use in AL_VERIFY_DEV_MODE_FEL
+# @note Use only in AWDeviceMode[:fel]
 def felix_run(handle, address)
   request = AWFELMessage.new
   request.cmd = FELCmd[:run]
@@ -363,7 +368,7 @@ puts "----------------------"
 begin
   # ComputerInteger: hex strings (0x....) or decimal
   ComputerInteger = /(?:0x[\da-fA-F]+(?:_[\da-fA-F]+)*|\d+(?:_\d+)*)/
-  Modes = [:fes]
+  Modes = [:fel, :fes]
   AddressCmds = [:write, :read, :run]
   LengthCmds = [:read]
   OptionParser.new do |opts|
@@ -382,11 +387,6 @@ begin
       opts.on("--debug path", String, "Decodes packets from Wireshark dump") do |f|
         debug_packets(f)
         exit
-      end
-      opts.on("--mode mode", Modes, "Switch device to one of modes (" <<
-        Modes.join(", ") << ")") do |m|
-        $options[:action] = :switch
-        $options[:mode] = m
       end
       opts.on("--run", "Execute code. Use with --address") do
         $options[:action] = :run
@@ -417,10 +417,24 @@ begin
       "for --" << LengthCmds.join(", --") << ")") do |l|
         $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
       end
+      opts.on("-m", "--mode mode", Modes, "Set command context to one of" <<
+      "modes (" << Modes.join(", ") << ")") do |m|
+        $options[:mode] = m.to_sym
+      end
+      opts.on("-t", "--tags t,a,g", Array, "One or more tag (" <<
+      AWTags.keys.join(", ") << ")") do |t|
+        $options[:tags] = t.map(&:to_sym) # Convert every value to symbol
+      end
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
         $options[:verbose] = true
       end
   end.parse!
+  $options[:tags] = [:none] unless $options[:tags]
+  $options[:mode] = :fel unless $options[:mode]
+  unless ($options[:tags] - AWTags.keys).empty?
+    puts "Invalid tag. Please specify one or more of " << AWTags.keys.join(", ")
+    exit
+  end
   raise OptionParser::MissingArgument if($options[:action] == :read &&
     ($options[:length] == nil || $options[:address] == nil))
   raise OptionParser::MissingArgument if(($options[:action] == :write ||
@@ -496,8 +510,10 @@ when :format
   end
 when :read
   begin
-    print "* Reading data (#{$options[:length]} bytes)" unless $options[:verbose]
-    data = felix_read($handle, $options[:address], $options[:length])
+    print "* #{$options[:mode]}: Reading data (#{$options[:length]}" <<
+      " bytes)" unless $options[:verbose]
+    data = felix_read($handle, $options[:address], $options[:length],
+      $options[:tags], $options[:mode])
     File.open($options[:file], "w") { |f| f.write(data) }
     puts "\t[OK]".green unless $options[:verbose]
   rescue => e
@@ -506,10 +522,11 @@ when :read
   end
 when :write
   begin
-    print "* Writing data" unless $options[:verbose]
+    print "* #{$options[:mode]}: Writing data" unless $options[:verbose]
     data = File.read($options[:file])
     print " (#{data.length} bytes)" unless $options[:verbose]
-    felix_write($handle, $options[:address], data)
+    felix_write($handle, $options[:address], data, $options[:tags],
+      $options[:mode])
     puts "\t[OK]".green unless $options[:verbose]
   rescue => e
     puts "\t[FAIL]".red unless $options[:verbose]

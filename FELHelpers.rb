@@ -16,7 +16,7 @@
 
 # Change the way library allocs memory to avoid nasty memory segmentation
 class LIBUSB::Transfer
-  # Allocate +len+ bytes of data buffer for input transfer.
+  # Allocate len bytes of data buffer for input transfer.
   #
   # @param [Fixnum]  len  Number of bytes to allocate
   # @param [String, nil] data  some data to initialize the buffer with
@@ -53,17 +53,18 @@ end
 # @param id [Integer] board id
 # @return [String] board name or ? if unknown
 def board_id_to_str(id)
-  case (id >> 8 & 0xFFFF)
-  when 0x1610 then "Allwinner A31s"
-  when 0x1623 then "Allwinner A10"
-  when 0x1625 then "Allwinner A13"
-  when 0x1633 then "Allwinner A31"
-  when 0x1639 then "Allwinner A80"
-  when 0x1650 then "Allwinner A23"
-  when 0x1651 then "Allwinner A20"
+  board = case (id >> 8 & 0xFFFF)
+  when 0x1610 then "Allwinner A31s (sun6i)"
+  when 0x1623 then "Allwinner A10 (sun4i)"
+  when 0x1625 then "Allwinner A13/A10s (sun5i)"
+  when 0x1633 then "Allwinner A31 (sun6i)"
+  when 0x1639 then "Allwinner A80/A33 (sun9i)"
+  when 0x1650 then "Allwinner A23 (sun7i)"
+  when 0x1651 then "Allwinner A20 (sun7i)"
   else
-    "?"
+    "Unknown: (0x#{id >> 8 & 0xFFFF})"
   end
+  board << ", revision #{id & 0xFF}"
 end
 
 # Convert tag mask to string
