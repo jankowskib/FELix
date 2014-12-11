@@ -117,6 +117,17 @@ class FELix
     @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
   end
 
+  # Clean up on and finish program
+  def bailout
+    print "* Finishing"
+    @handle.close if @handle
+    puts "\t[OK]".green
+    exit
+  rescue => e
+    puts "\t[FAIL]".red
+    puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
+  end
+
   # Send a request
   # @param data binary data
   # @return [AWUSBResponse] or nil if fails
@@ -166,21 +177,9 @@ class FELix
     " (" << e.message << ")"
   end
 
-
-  # Clean up on and finish program
-  def bailout
-    print "* Finishing"
-    @handle.close if @handle
-    puts "\t[OK]".green
-    exit
-  rescue => e
-    puts "\t[FAIL]".red
-    puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
-  end
-
   # Get device status
   # @return [AWFELVerifyDeviceResponse] device status
-  # @raise [String]
+  # @raise [String] error name
   def get_device_info
     data = send_request(AWFELStandardRequest.new.to_binary_s)
     if data == nil
@@ -198,54 +197,6 @@ class FELix
     status = AWFELStatusResponse.read(data)
     raise "Command failed (Status #{status.state})" if status.state > 0
     info
-  end
-
-  # Erase NAND flash
-  # @return [AWFESVerifyStatusResponse] operation status
-  # @raise [String] error name
-  # @note Use only in AWDeviceMode[:fel]
-  def format_device
-    request = AWFELMessage.new
-    request.address = 0
-    request.len = 16
-    request.flags = AWTags[:erase] | AWTags[:finish]
-    data = send_request(request.to_binary_s)
-    if data == nil
-      raise "Failed to send request (data: #{data})"
-    end
-    data = recv_request(8)
-    if data == nil || data.length != 8
-      raise "Failed to receive device status (data: #{data})"
-    end
-    status = AWFELStatusResponse.read(data)
-    if status.state > 0
-      raise "Command failed (Status #{status.state})"
-    end
-    verify_status(@handle, :erase)
-  end
-
-  # Verify last operation status
-  # @param tags [Symbol] operation tag (zero or more of AWTags)
-  # @return [AWFESVerifyStatusResponse] device status
-  # @raise [String] error name
-  # @note Use only in AWDeviceMode[:fes]
-  def verify_status(tags=[:none])
-    request = AWFELMessage.new
-    request.cmd = FESCmd[:verify_status]
-    request.address = 0
-    request.len = 0
-    tags.each {|t| request.flags |= AWTags[t]}
-    data = send_request(request.to_binary_s)
-    if data == nil
-      raise "Failed to send verify request"
-    end
-    data = recv_request(12)
-    if data == nil
-      raise "Failed to receive verify request (no data)"
-    elsif data.length != 12
-      raise "Failed to receive verify request (data len #{data.length} != 12)"
-    end
-    AWFESVerifyStatusResponse.read(data)
   end
 
   # Read memory from device
@@ -340,10 +291,10 @@ class FELix
   # Execute code at specified memory
   # @param address [Integer] memory address to read from
   # @raise [String] error name
-  # @note Use only in AWDeviceMode[:fel]
   def run(address)
     request = AWFELMessage.new
-    request.cmd = FELCmd[:run]
+    request.cmd = FELCmd[:run] if mode == :fel
+    request.cmd = FESCmd[:run] if mode == :fes
     request.address = address
     data = send_request(request.to_binary_s)
     if data == nil
@@ -372,13 +323,93 @@ class FELix
     raise "Failed to send request (response len: #{data.length} !=" <<
     " 13)" if data.length != 13
 
-    output = recv_request($handle, FELIX_MAX_CHUNK)
+    output = recv_request(FELIX_MAX_CHUNK)
     Hexdump.dump output
 
-    status = recv_request($handle, 8)
+    status = recv_request(8)
     raise "Failed to get device status (data: #{status})" if status.length != 8
     status = AWFELStatusResponse.read(status)
     raise "Command failed (Status #{status.state})" if fel_status.state > 0
+  end
+
+  # Erase NAND flash
+  # @return [AWFESVerifyStatusResponse] operation status
+  # @raise [String] error name
+  # @note Use only in :fes mode
+  def format_device
+    request = AWFELMessage.new
+    request.address = 0
+    request.len = 16
+    request.flags = AWTags[:erase] | AWTags[:finish]
+    data = send_request(request.to_binary_s)
+    if data == nil
+      raise "Failed to send request (data: #{data})"
+    end
+    data = recv_request(8)
+    if data == nil || data.length != 8
+      raise "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise "Command failed (Status #{status.state})"
+    end
+    verify_status(:erase)
+  end
+
+  # Verify last operation status
+  # @param tags [Symbol] operation tag (zero or more of AWTags)
+  # @return [AWFESVerifyStatusResponse] device status
+  # @raise [String] error name
+  # @note Use only in :fes mode
+  def verify_status(tags=[:none])
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:verify_status]
+    request.address = 0
+    request.len = 0
+    tags.each {|t| request.flags |= AWTags[t]}
+    data = send_request(request.to_binary_s)
+    raise "Failed to send request (response len: #{data.length} !=" <<
+    " 13)" if data.length != 13
+    data = recv_request(12)
+    if data.length == 0
+      raise "Failed to receive verify request (no data)"
+    elsif data.length != 12
+      raise "Failed to receive verify request (data len #{data.length} != 12)"
+    end
+    status_response = AWFESVerifyStatusResponse.read(data)
+
+    data = recv_request(8)
+    if data == nil || data.length != 8
+      raise "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise "Command failed (Status #{status.state})"
+    end
+
+    status_response
+  end
+
+  # Load / unload flash storage (handle for :flash_set_on, flash_set_off)
+  # @param how [TrueClass, FalseClass] desired state of flash
+  # @raise [String] error name
+  # @note Use only in :fes mode
+  def set_storage_state(how)
+    request = AWFELStandardRequest.new
+    request.cmd = how ? FESCmd[:flash_set_on] : FESCmd[:flash_set_off]
+    data = send_request(request.to_binary_s)
+    raise "Failed to send request (response len: #{data.length} !=" <<
+      " 13)" if data.length != 13
+
+    data = recv_request(8)
+    if data == nil || data.length != 8
+      raise "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise "Command failed (Status #{status.state})"
+    end
+
   end
 
 end
@@ -398,6 +429,8 @@ begin
   OptionParser.new do |opts|
       opts.banner = "Usage: FELix.rb action [options]"
       opts.separator "Actions:"
+
+      opts.separator "* Common".light_blue.underline
       opts.on("--devices", "List the devices") do |v|
         devices = LIBUSB::Context.new.devices(:idVendor => 0x1f3a,
          :idProduct => 0xefe8)
@@ -409,13 +442,17 @@ begin
         end
         exit
       end
-      opts.on("--info", "Get device info") { $options[:action] =
-        :device_info }
-      opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
       opts.on("--debug path", String, "Decodes packets from Wireshark dump") do |f|
         FELHelpers.debug_packets(f)
         exit
       end
+      opts.on("--version", "Show version") do
+        puts FELIX_VERSION
+        exit
+      end
+
+      opts.separator "* FEL/FES mode".light_blue.underline
+      opts.on("--info", "Get device info") { $options[:action] = :device_info }
       opts.on("--run", "Execute code. Use with --address") do
         $options[:action] = :run
       end
@@ -429,14 +466,19 @@ begin
          $options[:action] = :write
          $options[:file] = f
       end
-      opts.on("--request id", ComputerInteger, "Send a standard request") do |f|
-        $options[:action] = :request
-        $options[:request] = f[0..1] == "0x" ? Integer(f, 16) : f.to_i
+      opts.on("--request id", ComputerInteger, "Send a standard " <<
+        "request (experimental)") do |f|
+         $options[:action] = :request
+         $options[:request] = f[0..1] == "0x" ? Integer(f, 16) : f.to_i
       end
-      opts.on("--version", "Show version") do
-        puts FELIX_VERSION
-        exit
+
+      opts.separator "* Only in FES mode".light_blue.underline
+      opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
+      opts.on("--[no-]storage", "Enable/disable NAND driver") do |b|
+        $options[:action] = :storage
+        $options[:how] = b
       end
+
       opts.separator "Options:"
       opts.on("-d", "--device number", Integer,
       "Select device number (default 0)") { |id| $options[:device] = id }
@@ -527,6 +569,15 @@ begin
     rescue => e
       puts "\t[FAIL]".red unless $options[:verbose]
       puts "Failed to format device (#{e.message}) at #{e.backtrace.join("\n")}"
+    end
+  when :storage
+    begin
+      print "* Setting flash state to #{$options[:how]}" unless $options[:verbose]
+      data = fel.set_storage_state($options[:how])
+      puts "\t[OK]".green unless $options[:verbose]
+    rescue => e
+      puts "\t[FAIL]".red unless $options[:verbose]
+      puts "Failed to set flash state (#{e.message}) at #{e.backtrace.join("\n")}"
     end
   when :read
     begin
