@@ -37,14 +37,15 @@ class LIBUSB::Transfer
   end
 end
 
-class String
-  def camelize
+
+class String # @visibility private
+  def camelize # @visibility private
       self.gsub(/\/(.?)/) { "::" + $1.upcase }.gsub(/(^|_)(.)/) { $2.upcase }
   end
 end
 
-class Symbol
-  def camelize
+class Symbol # @visibility private
+  def camelize # @visibility private
     self.to_s.camelize
   end
 end

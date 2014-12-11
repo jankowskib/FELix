@@ -41,6 +41,19 @@ class AWFELStandardRequest < BinData::Record # size 16
   array    :reserved, :type => :uint8, :initial_length  => 12, :value => 0
 end
 
+# Extended struct for FEL/FES commands
+#   Structure size: 16
+class AWFELMessage < BinData::Record
+  uint16le :cmd, :initial_value => FELCmd[:download]
+  uint16le :tag, :initial_value => 0
+  uint32le :address   # address also start for :verify tool_mode for :tool_mode
+                      #  addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL, FES_MEDIA_INDEX_LOG
+                      #  addr + totalTransLen => FES_MEDIA_INDEX_DRAM
+                      #  totalTransLen => 65536 (max chunk)
+  uint32le :len # also next_mode for :tool_mode
+  uint32le :flags, :initial_value => AWTags[:none] # one or more of FEX_TAGS
+end
+
 class AWFELFESTrasportRequest < BinData::Record # size 16
   uint16le :cmd, :value => FESCmd[:transmite]
   uint16le :tag, :initial_value => 0
@@ -73,17 +86,6 @@ class AWFESVerifyStatusResponse < BinData::Record # size 12
   uint32le :flags # always 0x6a617603
   uint32le :fes_crc # always 0
   int32le  :last_error # 0 if OK, -1 if fail
-end
-
-class AWFELMessage < BinData::Record # size 16
-  uint16le :cmd, :initial_value => FELCmd[:download]
-  uint16le :tag, :initial_value => 0
-  uint32le :address # also msg_len, start for verify
-  # addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL, FES_MEDIA_INDEX_LOG
-  # addr + totalTransLen => FES_MEDIA_INDEX_DRAM
-  # totalTransLen => 65536 (max chunk)
-  uint32le :len
-  uint32le :flags, :initial_value => AWTags[:none] # one or more of FEX_TAGS
 end
 
 class AWDRAMData < BinData::Record # size 136?

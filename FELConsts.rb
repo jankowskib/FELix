@@ -15,6 +15,8 @@
 #
 
 FELIX_VERSION = "1.0 alfa"
+
+#Maximum data transfer length
 FELIX_MAX_CHUNK = 65536
 
 #AWUSBRequest type
@@ -25,10 +27,10 @@ USBCmd = {
 
 #FEL Messages
 FELCmd = {
-  :verify_device                   => 0x1,
+  :verify_device                   => 0x1, # can be used in FES
   :switch_role                     => 0x2,
-  :is_ready                        => 0x3, # Read len 8
-  :get_cmd_set_ver                 => 0x4,
+  :is_ready                        => 0x3, # Read len 8, can be used in FES
+  :get_cmd_set_ver                 => 0x4, # can be used in FES
   :disconnect                      => 0x10,
   :download                        => 0x101, # write
   :run                             => 0x102,
@@ -46,13 +48,15 @@ FESCmd = {
   :upload                          => 0x207,
   :verify                          => 0x208,
   :query_storage                   => 0x209,
-  :flash_set_on                    => 0x20A,
-  :flash_set_off                   => 0x20B,
+  :flash_set_on                    => 0x20A, # execs sunxi_sprite_init(0) => no data
+  :flash_set_off                   => 0x20B, # execs sunxi_sprite_exit(1) => no data
   :verify_value                    => 0x20C,
-  :verify_status                   => 0x20D, # Read len 12
-  :flash_size_probe                => 0x20E,
-  :tool_mode                       => 0x20F,
-  :memset                          => 0x210,
+  :verify_status                   => 0x20D, # Read len 12 => AWFESVerifyStatusResponse
+  :flash_size_probe                => 0x20E, # Read len 4 => sunxi_sprite_size()
+  :tool_mode                       => 0x20F, # can be used to reboot device
+                                             #  :toolmode is one of AWUBootWorkMode
+                                             #  :nextmode is desired mode (0 => SUNXI_UPDATE_NEXT_ACTION_REBOOT)
+  :memset                          => 0x210, # can be used to fill memory with desired value (byte)
   :pmu                             => 0x211,
   :unseqmem_read                   => 0x212,
   :unseqmem_write                  => 0x213
