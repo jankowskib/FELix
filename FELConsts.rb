@@ -62,9 +62,19 @@ FESCmd = {
 AWDeviceMode = {
   :null                            => 0x0,
   :fel                             => 0x1,
-  :srv                             => 0x2,
+  :fes                             => 0x2, # also :srv
   :update_cool                     => 0x3,
   :update_hot                      => 0x4
+}
+
+# U-boot mode (uboot_spare_head.boot_data.work_mode,0xE0 offset)
+AWUBootWorkMode = {
+  :boot                            =>	0x0,
+  :usb_product                     => 0x10,
+  :card_product                    => 0x11,
+  :usb_debug	                     => 0x12,
+  :usb_update	                     => 0x20,
+  :outer_update	                   => 0x21
 }
 
 #Flag for FESCmd[:transmite]

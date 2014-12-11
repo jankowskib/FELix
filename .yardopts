@@ -1,0 +1,5 @@
+--title 'FELix documentation'
+--markup markdown
+--charset utf-8
+'FEL*.rb'
+
