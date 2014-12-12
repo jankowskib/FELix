@@ -32,7 +32,7 @@ class AWUSBResponse < BinData::Record # size 13
   string   :magic, :length => 4, :initial_value => "AWUS"
   uint32le :tag
   uint32le :residue
-  uint8    :csw_status					# != 0, then fail
+  uint8    :csw_status                # != 0, then fail
 end
 
 class AWFELStandardRequest < BinData::Record # size 16

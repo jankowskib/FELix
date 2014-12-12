@@ -73,7 +73,7 @@ AWDeviceMode = {
 
 # U-boot mode (uboot_spare_head.boot_data.work_mode,0xE0 offset)
 AWUBootWorkMode = {
-  :boot                            =>	0x0,
+  :boot                            => 0x0,
   :usb_product                     => 0x10,
   :card_product                    => 0x11,
   :usb_debug	                     => 0x12,

@@ -76,7 +76,7 @@ require_relative 'FELHelpers'
 # => 0x7210 - 0x7220: SYS_PARA_LOG (16 bytes)
 # => 0x7220 - 0x7D00: SYS_INIT_PROC (2784 bytes)
 # => 0x7D00 - 0x7E00: ? (256 bytes)
-# => 0x7E00 - ?     : DATA_START_ADDRESS
+# 0x7E00 - ?     : DATA_START_ADDRESS
 # 0x40000000: DRAM_BASE
 # 0x4A000000: u-boot.fex
 # 0x4D415244: SYS_PARA_LOG (second instance?)
@@ -134,7 +134,7 @@ class FELix
   def send_request(data)
   # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
     request = AWUSBRequest.new
-    request.len = data.length
+    request.len = data.bytesize
     FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
     r = @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
      @usb_out)
@@ -146,10 +146,10 @@ class FELix
   # 3. Get AWUSBResponse
     r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
     FELHelpers.debug_packet(r3, :read) if $options[:verbose]
-    puts "Received ".green << "#{r3.length}".yellow << " bytes".green if $options[:verbose]
+    puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
     r3
   rescue => e
-    raise "Failed to send ".red << "#{data.length}".yellow << " bytes".red <<
+    raise "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
     " (" << e.message << ")"
   end
 
@@ -169,7 +169,7 @@ class FELix
     FELHelpers.debug_packet(recv_data, :read) if $options[:verbose]
   # 3. Get AWUSBResponse
     response = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
-    puts "Received ".green << "#{response.length}".yellow << " bytes".green if $options[:verbose]
+    puts "Received ".green << "#{response.bytesize}".yellow << " bytes".green if $options[:verbose]
     FELHelpers.debug_packet(response, :read) if $options[:verbose]
     recv_data
   rescue => e
@@ -186,12 +186,12 @@ class FELix
       raise "Failed to send request (data: #{data})"
     end
     data = recv_request(32)
-    if data == nil || data.length != 32
+    if data == nil || data.bytesize != 32
       raise "Failed to receive device info (data: #{data})"
     end
     info = AWFELVerifyDeviceResponse.read(data)
     data = recv_request(8)
-    if data == nil || data.length != 8
+    if data == nil || data.bytesize != 8
       raise "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
@@ -221,22 +221,22 @@ class FELix
       end
       tags.each {|t| request.flags |= AWTags[t]}
       data = send_request(request.to_binary_s)
-      raise "Failed to send request (response len: #{data.length} !=" <<
-        " 13)" if data.length != 13
+      raise "Failed to send request (response len: #{data.bytesize} !=" <<
+        " 13)" if data.bytesize != 13
 
       output = recv_request(request.len)
 
       # Rescue if we received AWUSBResponse
-      output = recv_request(request.len) if output.length !=
-       request.len && output.length == 13
+      output = recv_request(request.len) if output.bytesize !=
+       request.len && output.bytesize == 13
       # Rescue if we received AWFELStatusResponse
-      output = recv_request(request.len) if output.length !=
-       request.len && output.length == 8
-      if output.length != request.len
-        raise "Data size mismatch (data len #{output.length} != #{request.len})"
+      output = recv_request(request.len) if output.bytesize !=
+       request.len && output.bytesize == 8
+      if output.bytesize != request.len
+        raise "Data size mismatch (data len #{output.bytesize} != #{request.len})"
       end
       status = recv_request(8)
-      raise "Failed to get device status (data: #{status})" if status.length != 8
+      raise "Failed to get device status (data: #{status})" if status.bytesize != 8
       fel_status = AWFELStatusResponse.read(status)
       raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0
       result << output
@@ -253,7 +253,7 @@ class FELix
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @raise [String] error name
   def write(address, memory, tags=[:none], mode=:fel)
-    total_len = memory.length
+    total_len = memory.bytesize
     start = 0
     while total_len>0
       request = AWFELMessage.new
@@ -272,10 +272,10 @@ class FELix
       end
       data = send_request(memory[start, request.len])
       if data == nil
-        raise "Failed to send data (#{start}/#{memory.length})"
+        raise "Failed to send data (#{start}/#{memory.bytesize})"
       end
       data = recv_request(8)
-      if data == nil || data.length != 8
+      if data == nil || data.bytesize != 8
         raise "Failed to receive device status (data: #{data})"
       end
       status = AWFELStatusResponse.read(data)
@@ -290,8 +290,9 @@ class FELix
 
   # Execute code at specified memory
   # @param address [Integer] memory address to read from
+  # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @raise [String] error name
-  def run(address)
+  def run(address, mode=:fel)
     request = AWFELMessage.new
     request.cmd = FELCmd[:run] if mode == :fel
     request.cmd = FESCmd[:run] if mode == :fes
@@ -301,7 +302,7 @@ class FELix
       raise "Failed to send request (#{request.cmd})"
     end
     data = recv_request(8)
-    if data == nil || data.length != 8
+    if data == nil || data.bytesize != 8
       raise "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
@@ -320,14 +321,14 @@ class FELix
     request.cmd = req
     request.len = 0
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.length} !=" <<
-    " 13)" if data.length != 13
+    raise "Failed to send request (response len: #{data.bytesize} !=" <<
+    " 13)" if data.bytesize != 13
 
     output = recv_request(FELIX_MAX_CHUNK)
     Hexdump.dump output
 
     status = recv_request(8)
-    raise "Failed to get device status (data: #{status})" if status.length != 8
+    raise "Failed to get device status (data: #{status})" if status.bytesize != 8
     status = AWFELStatusResponse.read(status)
     raise "Command failed (Status #{status.state})" if fel_status.state > 0
   end
@@ -346,7 +347,7 @@ class FELix
       raise "Failed to send request (data: #{data})"
     end
     data = recv_request(8)
-    if data == nil || data.length != 8
+    if data == nil || data.bytesize != 8
       raise "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
@@ -368,18 +369,18 @@ class FELix
     request.len = 0
     tags.each {|t| request.flags |= AWTags[t]}
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.length} !=" <<
+    raise "Failed to send request (response len: #{data.bytesize} !=" <<
     " 13)" if data.length != 13
     data = recv_request(12)
-    if data.length == 0
+    if data.bytesize == 0
       raise "Failed to receive verify request (no data)"
-    elsif data.length != 12
-      raise "Failed to receive verify request (data len #{data.length} != 12)"
+    elsif data.bytesize != 12
+      raise "Failed to receive verify request (data len #{data.bytesize} != 12)"
     end
     status_response = AWFESVerifyStatusResponse.read(data)
 
     data = recv_request(8)
-    if data == nil || data.length != 8
+    if data == nil || data.bytesize != 8
       raise "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
@@ -398,11 +399,11 @@ class FELix
     request = AWFELStandardRequest.new
     request.cmd = how ? FESCmd[:flash_set_on] : FESCmd[:flash_set_off]
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.length} !=" <<
-      " 13)" if data.length != 13
+    raise "Failed to send request (response len: #{data.bytesize} !=" <<
+      " 13)" if data.bytesize != 13
 
     data = recv_request(8)
-    if data == nil || data.length != 8
+    if data == nil || data.bytesize != 8
       raise "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
@@ -595,7 +596,7 @@ begin
     begin
       print "* #{$options[:mode]}: Writing data" unless $options[:verbose]
       data = File.read($options[:file])
-      print " (#{data.length} bytes)" unless $options[:verbose]
+      print " (#{data.bytesize} bytes)" unless $options[:verbose]
       fel.write($options[:address], data, $options[:tags],
         $options[:mode])
       puts "\t[OK]".green unless $options[:verbose]
