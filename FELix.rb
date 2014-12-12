@@ -69,18 +69,42 @@ require_relative 'FELHelpers'
 # --> (16) FES_DOWN (0x206): 06 02 00 00 |00 a4 00 00| 00 04 00 00 |00 00 01 00 SUNXI_EFEX_TAG_FINISH
 
 # Flash process (A23, A31, boot v2) (FEL)
-# Some important info about memory
-# 0x2000 - 0x6000: INIT_CODE (16384 bytes)
-# 0x7010 - 0x7D00: FEL_MEMORY (3312 bytes)
+# Some important info about memory layout. Treat ranges as {a..b-1}
+# 0x0: SRAM_BASE
+# 0x2000 - 0x6000: INIT_CODE (16384 bytes), also: DRAM_INIT_CODE_ADDR
+# 0x7010 - 0x7D00: FEL_MEMORY (3312 bytes), also: FEL_RESERVE_START
 # => 0x7010 - 0x7210: SYS_PARA (512 bytes)
-# => 0x7210 - 0x7220: SYS_PARA_LOG (16 bytes)
-# => 0x7220 - 0x7D00: SYS_INIT_PROC (2784 bytes)
+# => 0x7210 - 0x7220: SYS_PARA_LOG_ADDR (16 bytes)
+# => 0x7220 - 0x7D00: SYS_INIT_PROC_ADDR (2784 bytes)
 # => 0x7D00 - 0x7E00: ? (256 bytes)
-# 0x7E00 - ?     : DATA_START_ADDRESS
+# 0x7E00 - ?     : DATA_START_ADDR
 # 0x40000000: DRAM_BASE
-# 0x4A000000: u-boot.fex
-# 0x4D415244: SYS_PARA_LOG (second instance?)
+# => 0x40000000 - 0x40008000: FEX_SRAM_A_BASE (32768 bytes)
+# => 0x40008000 - 0x40028000: FEX_SRAM_B_BASE (131072 bytes)
+#    => 0x40023C00: FEX_CRC32_VALID_ADDR (512 bytes)
+#    => 0x40023E00: FEX_SRAM_FES_PHO_PRIV_BASE (512 bytes)
+#    => 0x40024000: FEX_SRAM_FES_IRQ_STACK_BASE (8192 bytes)
+#    => 0x40026000: FEX_SRAM_FET_STACK_BASE (8192 bytes)
+# => 0x40028000 - ?: FEX_SRAM_C_BASE
+#    => 0x40100000: DRAM_TEST_ADDR, FEX_DRAM_BASE
+#    => 0x40200000 - 0x40280000: FES_ADDR_CRYPTOGRAPH (fes.fex, max 524288 bytes)
+#    => 0x40280000 - 0x40300000: FES_ADDR_PROCLAIM (524288 bytes)
+#    => 0x40300000 - 0x40400000: FEX_MISC_RAM_BASE (5242880 bytes)
+#    => 0x40400000 - 0x40410000: FET_PARA1_ADDR (65536 bytes)
+#    => 0x40410000 - 0x40420000: FET_PARA2_ADDR (65536 bytes)
+#    => 0x40420000 - 0x40430000: FET_PARA3_ADDR (65536 bytes)
+#    => 0x40430000 - 0x40470000: FET_CODE_ADDR (262144 bytes), FED_CODE_DOWN_ADDR (524288 bytes)
+#    => 0x40600000 - 0x40700000: BOOTX_BIN_ADDR (1048576 bytes)
+#    => 0x40800000 - 0x40900000: FED_TEMP_BUFFER_ADDR (1048576 bytes)
+#    => 0x40900000 - 0x40901000: FED_PARA_1_ADDR (4096 bytes)
+#    => 0x40901000 - 0x40902000: FED_PARA_1_ADDR (4096 bytes)
+#    => 0x40902000 - 0x40903000: FED_PARA_1_ADDR (4096 bytes)
+#    (...)
+#    => 0x4A000000: u-boot.fex
+#    => 0x4D415244: SYS_PARA_LOG (second instance?)
+#    => 0x80600000: FEX_SRAM_FOR_FES_TEMP_BUF (65536 bytes)
 #
+# Booting to FES (boot 2.0)
 # 1. FEL_VERIFY_DEVICE => mode: fel, data_start_address: 0x7E00
 # 2. FEL_VERIFY_DEVICE (not sure why it's spamming with this)
 # 3. FEL_UPLOAD: Get 256 bytes of data (filed 0xCC) from 0x7E00 (data_start_address)
@@ -94,14 +118,37 @@ require_relative 'FELHelpers'
 # 8. FEL_UPLOAD: Get 136 bytes of data (DRAM...) from 0x7210 (SYS_PARA_LOG)
 # => After "DRAM" + 0x00000001, there's 32 dword with dram params
 # 9. FEL_DOWNLOAD(12 times because u-boot.fex is 0xBC000 bytes):
-# => Send (u-boot.fex) 0x4A000000 in 65536 bytes; hunks, last chunk is 49152
+# => Send (u-boot.fex) 0x4A000000 in 65536 bytes chunks, last chunk is 49152
 # => bytes and ideally starts at config.fex data
 # => *** VERY IMPORTANT ***: There's set a flag (0x10) at 0xE0 byte of u-boot.
 # => Otherwise device will start normally after start of u-boot
 # 10.FEL_RUN: Run code at 0x4A000000 (u-boot.fex; its called also fes2)
-# => mode: srv, you can send FES commands now
-# *** Flash tool ask user if he would like to do format or upgrade
-
+# => mode: fes, you can send FES commands now
+# *** Flash tool asks user if he would like to do format or upgrade
+#
+# Old way (boot 1.0)
+# 1. Steps 1-4 of boot 2.0 method
+# 2. FEL_DOWNLOAD: Send 512 bytes of data (seems its some failsafe DRAM config) at 0x7010
+# 3. FEL_DOWNLOAD: Send 2784 bytes of data (fes1-1.fex, padded with 0x00) at 0x7220 (SYS_INIT_PROC)
+# => 2784 because that's length of SYS_INIT_PROC
+# 4. FEL_RUN: Run code at 0x7220 (fes1-1.fex)
+# 5. FEL_UPLOAD: Get 16 bytes of data ("DRAM", rest 0x00) from 0x7210 (SYS_PARA_LOG)
+# 6. FEL_DOWNLOAD: Send 16 bytes of data (filed 0x00) at 0x7210 (SYS_PARA_LOG)
+# => Clear SYS_PARA_LOG
+# 7. FEL_DOWNLOAD: Send 8544 bytes of data (fes1-2.fex) at 0x2000 (INIT_CODE)
+# 8. FEL_RUN: Run code at 0x2000 (fes1-2.fex) => inits and sets dram
+# 9. FEL_UPLOAD: Get 16 bytes of data ("DRAM",0x00000001, rest 0x00) from 0x7210 (SYS_PARA_LOG)
+# => if 1 then DRAM is updated, else "Failed to update dram para"
+# 10.FEL_UPLOAD: Get 512 bytes of data (DRAM) from 0x7010 (SYS_PARA)
+# 11.FEL_DOWNLOAD: Send 8192 bytes of random generated data at 0x40100000 (DRAM_TEST_ADDR)
+# 12.FEL_UPLOAD: Get 8192 bytes of data from 0x40100000 => verify if DRAM is working ok
+# 13.FEL_DOWNLOAD: Send 16 bytes of data (filed 0x00) at 0x7210 (SYS_PARA_LOG)
+# => Clear SYS_PARA_LOG
+# 13.FEL_DOWNLOAD: Send 86312 bytes of data (fes.fex) at 0x40200000 (FES_ADDR_CRYPTOGRAPH)
+# 14.FEL_DOWNLOAD: Send 1964 bytes of data (fes_2.fex) at 0x7220 (SYS_INIT_PROC_ADDR)
+# 15.FEL_RUN: Run code at 0x7220 (fes_2.fex)
+# => mode: fes, you can send FES commands now
+# *** Flash tool asks user if he would like to do format or upgrade
 
 # Main class for program. Contains methods to communicate with the device
 class FELix
@@ -447,7 +494,7 @@ begin
         end
         exit
       end
-      opts.on("--debug path", String, "Decodes packets from Wireshark dump") do |f|
+      opts.on("--decode path", String, "Decodes packets from Wireshark dump") do |f|
         FELHelpers.debug_packets(f)
         exit
       end
@@ -523,6 +570,9 @@ rescue OptionParser::MissingArgument
   exit
 rescue OptionParser::InvalidArgument
   puts "Invalid argument. Type FELix.rb --help to see usage"
+  exit
+rescue OptionParser::InvalidOption
+  puts "Unknown option. Type FELix.rb --help to see usage"
   exit
 end
 
