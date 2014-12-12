@@ -242,6 +242,8 @@ class FELix
       result << output
       remain_len-=request.len
       address+=request.len
+      print "\r* #{$options[:mode]}: Reading data (" <<
+      "#{length-remain_len}/#{$options[:length]} bytes)" unless $options[:verbose]
     end
     result
   end
@@ -270,7 +272,7 @@ class FELix
       if data == nil
         raise "Failed to send request (#{request.cmd})"
       end
-      data = send_request(memory[start, request.len])
+      data = send_request(memory.byteslice(start, request.len))
       if data == nil
         raise "Failed to send data (#{start}/#{memory.bytesize})"
       end
@@ -285,6 +287,8 @@ class FELix
       start+=request.len
       total_len-=request.len
       address+=request.len
+      print "\r* #{$options[:mode]}: Writing data (" <<
+      "#{start}/#{memory.bytesize} bytes)" unless $options[:verbose]
     end
   end
 
@@ -582,8 +586,8 @@ begin
     end
   when :read
     begin
-      print "* #{$options[:mode]}: Reading data (#{$options[:length]}" <<
-        " bytes)" unless $options[:verbose]
+      #print "* #{$options[:mode]}: Reading data (#{$options[:length]}" <<
+      #  " bytes)" unless $options[:verbose]
       data = fel.read($options[:address], $options[:length], $options[:tags],
         $options[:mode])
       File.open($options[:file], "w") { |f| f.write(data) }
@@ -594,7 +598,7 @@ begin
     end
   when :write
     begin
-      print "* #{$options[:mode]}: Writing data" unless $options[:verbose]
+      print "* #{$options[:mode]}: Reading file" unless $options[:verbose]
       data = File.read($options[:file])
       print " (#{data.bytesize} bytes)" unless $options[:verbose]
       fel.write($options[:address], data, $options[:tags],
@@ -606,7 +610,7 @@ begin
     end
   when :run
     begin
-      fel.run($options[:address])
+      fel.run($options[:address], $options[:mode])
     rescue => e
       puts "Failed to execute: #{e.message} at #{e.backtrace.join("\n")}"
     end
