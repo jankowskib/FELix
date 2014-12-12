@@ -118,6 +118,10 @@ class FELHelpers
         p = AWDRAMData.read(packet)
         puts "<-- (% 5d) " % packet.length << "AWDRAMData".light_blue
         p p
+      elsif packet.length == 512
+        p = AWSystemParameters.read(packet)
+        puts "<-- (% 5d) " % packet.length << "AWSystemParameters".light_blue
+        p p
       else
         return :unk if dir == :unk
         print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.length
@@ -127,7 +131,7 @@ class FELHelpers
           when FELCmd[:verify_device] then puts "FELVerifyDevice"
             .light_blue <<  " (0x#{FELCmd[:verify_device]})"
           when FESCmd[:transmite]
-            p = AWFELFESTrasportRequest.read(packet)
+            p = AWFESTrasportRequest.read(packet)
             puts "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue <<
             FESTransmiteFlag.key(p.direction).to_s <<
             ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,

@@ -47,14 +47,15 @@ class AWFELMessage < BinData::Record
   uint16le :cmd, :initial_value => FELCmd[:download]
   uint16le :tag, :initial_value => 0
   uint32le :address   # address also start for :verify tool_mode for :tool_mode
-                      #  addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL, FES_MEDIA_INDEX_LOG
+                      #  addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL,
+                      #  FES_MEDIA_INDEX_LOG
                       #  addr + totalTransLen => FES_MEDIA_INDEX_DRAM
                       #  totalTransLen => 65536 (max chunk)
   uint32le :len # also next_mode for :tool_mode
   uint32le :flags, :initial_value => AWTags[:none] # one or more of FEX_TAGS
 end
 
-class AWFELFESTrasportRequest < BinData::Record # size 16
+class AWFESTrasportRequest < BinData::Record # size 16
   uint16le :cmd, :value => FESCmd[:transmite]
   uint16le :tag, :initial_value => 0
   uint32le :address
@@ -116,4 +117,62 @@ class AWDRAMData < BinData::Record # size 136?
   uint32le :dram_tpr12
   uint32le :dram_tpr13
   array    :dram_unknown, :type => :uint32le, :read_until => :eof
+end
+
+# Init data for boot 1.0
+# It's created using sys_config.fex, and its product of fes1-2.fex
+# Names in brackets are [section] from sys_config.fex, and variable name is a key
+# Size 512
+# Dump of the struct (A31)
+# unsigned char rawData[512] = {
+#   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+#   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+#   0x87, 0x4A, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00, [0x38, 0x01, 0x00, 0x00], => dram_clk
+#   0x03, 0x00, 0x00, 0x00, 0xFB, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+#   0x00, 0x08, 0xF4, 0x10, 0x11, 0x12, 0x00, 0x00, 0x50, 0x1A, 0x00, 0x00,
+#   0x04, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+#   0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x80, 0x40, 0x01, 0xA7, 0x39,
+#   0x4C, 0xE7, 0x92, 0xA0, 0x09, 0xC2, 0x48, 0x29, 0x2C, 0x42, 0x44, 0x89,
+#   0x80, 0x84, 0x02, 0x30, 0x97, 0x32, 0x2A, 0x00, 0xA8, 0x4F, 0x03, 0x05,
+#   0xD8, 0x53, 0x63, 0x03, (0x00, 0x00, 0x00, 0x00)*
+#   };
+# @note default values are for A31s
+class AWSystemParameters < BinData::Record
+  # how to encode port (on example: port:PH20<2><1><default><default>):
+  #  ?    : 0x40000                  = 0x40000
+  #  group: 0x80000 + 'H' - 'A'      = 0x80007   (PH)
+  #  pin:   0x100000 + (20 * 32)     = 0x100280  (20)
+  #  func:  0x200000 + (2 * 1024)    = 0x200800  (<2>)
+  #  mul:   0x400000 + (1 * 16384)   = 0x404000  (<1>)
+  #  pull:  0x800000 + (? * 65536)   = 0         (<default>)
+  #  data:  0x1000000 +(? * 262144)  = 0         (<default>)
+  #  sum                             = 0x7C4A87
+  array    :unknown, :type => :uint8, :initial_length => 24
+  uint32le :uart_debug_tx, :initial_value => 0x7C4A87   # 0x18 [uart_para]
+  uint32le :uart_debug_port, :inital_value => 0         # 0x1C [uart_para]
+  uint32le :dram_clk, :initial_value => 240             # 0x20
+  uint32le :dram_type, :initial_value => 3              # 0x24
+  uint32le :dram_zq, :initial_value => 0xBB             # 0x28
+  uint32le :dram_odt_en, :initial_value => 0            # 0x2C
+  uint32le :dram_para1, :initial_value => 0x10F40400    # 0x30 &=0xffff => DRAM size (1048)
+  uint32le :dram_para2, :initial_value => 0x1211
+  uint32le :dram_mr0, :initial_value => 0x1A50
+  uint32le :dram_mr1, :initial_value => 0
+  uint32le :dram_mr2, :initial_value => 24
+  uint32le :dram_mr3, :initial_value => 0
+  uint32le :dram_tpr0, :initial_value => 0
+  uint32le :dram_tpr1, :initial_value => 0x80000800
+  uint32le :dram_tpr2, :initial_value => 0x46270140
+  uint32le :dram_tpr3, :initial_value => 0xA0C4284C
+  uint32le :dram_tpr4, :initial_value => 0x39C8C209
+  uint32le :dram_tpr5, :initial_value => 0x694552AD
+  uint32le :dram_tpr6, :initial_value => 0x3002C4A0
+  uint32le :dram_tpr7, :initial_value => 0x2AAF9B
+  uint32le :dram_tpr8, :initial_value => 0x604111D
+  uint32le :dram_tpr9, :initial_value => 0x42DA072
+  uint32le :dram_tpr10, :initial_value => 0
+  uint32le :dram_tpr12, :initial_value => 0
+  uint32le :dram_tpr13, :initial_value => 0           # 0x78
+  uint32le :dram_size, :initial_value => (1024 << 20) # 1024 MB
+  array    :unused, :type => :uint32le, :read_until => :eof
 end
