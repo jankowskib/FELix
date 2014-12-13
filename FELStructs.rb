@@ -46,22 +46,22 @@ end
 class AWFELMessage < BinData::Record
   uint16le :cmd, :initial_value => FELCmd[:download]
   uint16le :tag, :initial_value => 0
-  uint32le :address   # address also start for :verify tool_mode for :tool_mode
-                      #  addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL,
-                      #  FES_MEDIA_INDEX_LOG
+  uint32le :address   #  addr + totalTransLen / 512 => FES_MEDIA_INDEX_PHYSICAL,
+                      #  FES_MEDIA_INDEX_LOG (NAND)
                       #  addr + totalTransLen => FES_MEDIA_INDEX_DRAM
                       #  totalTransLen => 65536 (max chunk)
   uint32le :len # also next_mode for :tool_mode
   uint32le :flags, :initial_value => AWTags[:none] # one or more of FEX_TAGS
 end
 
+# Boot 1.0 way to download data
 class AWFESTrasportRequest < BinData::Record # size 16
   uint16le :cmd, :value => FESCmd[:transmite]
   uint16le :tag, :initial_value => 0
   uint32le :address
   uint32le :len
   uint8    :media_index, :initial_value => FESIndex[:dram]
-  uint8    :direction, :initial_value => FESTransmiteFlag[:download]
+  uint8    :direction, :initial_value => FESTransmiteFlag[:write]
   array    :reserved, :type => :uint8, :initial_length  => 2, :value => 0
 end
 
@@ -85,8 +85,8 @@ end
 
 class AWFESVerifyStatusResponse < BinData::Record # size 12
   uint32le :flags # always 0x6a617603
-  uint32le :fes_crc # always 0
   int32le  :last_error # 0 if OK, -1 if fail
+  uint32le :fes_crc
 end
 
 class AWDRAMData < BinData::Record # size 136?
@@ -140,12 +140,12 @@ end
 class AWSystemParameters < BinData::Record
   # how to encode port (on example: port:PH20<2><1><default><default>):
   #  ?    : 0x40000                  = 0x40000
-  #  group: 0x80000 + 'H' - 'A'      = 0x80007   (PH)
-  #  pin:   0x100000 + (20 * 32)     = 0x100280  (20)
-  #  func:  0x200000 + (2 * 1024)    = 0x200800  (<2>)
-  #  mul:   0x400000 + (1 * 16384)   = 0x404000  (<1>)
-  #  pull:  0x800000 + (? * 65536)   = 0         (<default>)
-  #  data:  0x1000000 +(? * 262144)  = 0         (<default>)
+  #  group: 0x80000 + 'H' - 'A'      = 0x80007   (H)
+  #  pin:   0x100000 + (20 << 5)     = 0x100280  (20)
+  #  func:  0x200000 + (2  << 10)    = 0x200800  (<2>)
+  #  mul:   0x400000 + (1  << 14)    = 0x404000  (<1>)
+  #  pull:  0x800000 + (?  << 16)    = 0         (<default>)
+  #  data:  0x1000000 +(?  << 18)    = 0         (<default>)
   #  sum                             = 0x7C4A87
   array    :unknown, :type => :uint8, :initial_length => 24
   uint32le :uart_debug_tx, :initial_value => 0x7C4A87   # 0x18 [uart_para]
