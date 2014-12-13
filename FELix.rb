@@ -39,35 +39,7 @@ require_relative 'FELHelpers'
 # --> AWUSBRequest(AW_USB_READ, 8)
 # <-- READ(8)
 # <-- READ(13) -> AWUSBResponse
-
-# Flash process (A31s) (FES) (not completed)
-# 1. FEL_VERIFY_DEVICE => mode: srv
-# 2. FES_TRANSMITE: Get FES (upload flag)
-# 3. FEL_VERIFY_DEVICE
-# 4. FES_TRANSMITE: Flash new FES (download flag)
-# 5. FES_DOWNLOAD (No write) (00 00 00 00 | 00 00 10 00 | 00 00 04 7f 01 00) [SUNXI_EFEX_TAG_ERASE|SUNXI_EFEX_TAG_FINISH]
-# 6. FEL_VERIFY_DEVICE
-# 7. FES_VERIFY_STATUS (tail 04 7f 00 00) [SUNXI_EFEX_TAG_ERASE]
-# 8. FES_DOWNLOAD (write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size)
-#                                  (00 00 00 00 00 00 00 00 01 00 01 7f 01 00) [SUNXI_EFEX_TAG_MBR|SUNXI_EFEX_TAG_FINISH]
-# 9. FES_VERIFY_STATUS (tail 01 7f 00 00) [SUNXI_EFEX_TAG_MBR]
-# (...)
-
-
-# 0x206 data80
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 00 00 00| 10 00 00 00 |04 7f 01 00  SUNXI_EFEX_TAG_ERASE|SUNXI_EFEX_TAG_FINISH
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 00 00 00| 00 00 01 00 |01 7f 01 00  SUNXI_EFEX_TAG_MBR|SUNXI_EFEX_TAG_FINISH
-# Then following sequence (write in chunks of 128 bytes => becase of FES_MEDIA_INDEX_LOG) writing partitons...
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 80 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |80 80 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 81 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |80 81 00 00| 00 00 01 00 |00 00 00 00
-# -->                                                 ...
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 a3 00 00| 00 00 01 00 |00 00 00 00
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |80 a3 00 00| 00 00 01 00 |00 00 00 00
-# -->                                                 ...
-# --> (16) FES_DOWN (0x206): 06 02 00 00 |00 a4 00 00| 00 04 00 00 |00 00 01 00 SUNXI_EFEX_TAG_FINISH
-
+#
 # Flash process (A23, A31, boot v2) (FEL)
 # Some important info about memory layout. Treat ranges as {a..b-1}
 # 0x0: SRAM_BASE
@@ -128,7 +100,8 @@ require_relative 'FELHelpers'
 #
 # Old way (boot 1.0)
 # 1. Steps 1-4 of boot 2.0 method
-# 2. FEL_DOWNLOAD: Send 512 bytes of data (seems its some failsafe DRAM config) at 0x7010
+# 2. FEL_DOWNLOAD: Send 512 bytes of data (seems its some failsafe DRAM config
+#     AWSystemParameters) at 0x7010 (SYS_PARA)
 # 3. FEL_DOWNLOAD: Send 2784 bytes of data (fes1-1.fex, padded with 0x00) at 0x7220 (SYS_INIT_PROC)
 # => 2784 because that's length of SYS_INIT_PROC
 # 4. FEL_RUN: Run code at 0x7220 (fes1-1.fex)
@@ -139,7 +112,7 @@ require_relative 'FELHelpers'
 # 8. FEL_RUN: Run code at 0x2000 (fes1-2.fex) => inits and sets dram
 # 9. FEL_UPLOAD: Get 16 bytes of data ("DRAM",0x00000001, rest 0x00) from 0x7210 (SYS_PARA_LOG)
 # => if 1 then DRAM is updated, else "Failed to update dram para"
-# 10.FEL_UPLOAD: Get 512 bytes of data (DRAM) from 0x7010 (SYS_PARA)
+# 10.FEL_UPLOAD: Get 512 bytes of data (AWSystemParameters) from 0x7010 (SYS_PARA)
 # 11.FEL_DOWNLOAD: Send 8192 bytes of random generated data at 0x40100000 (DRAM_TEST_ADDR)
 # 12.FEL_UPLOAD: Get 8192 bytes of data from 0x40100000 => verify if DRAM is working ok
 # 13.FEL_DOWNLOAD: Send 16 bytes of data (filed 0x00) at 0x7210 (SYS_PARA_LOG)
@@ -149,6 +122,52 @@ require_relative 'FELHelpers'
 # 15.FEL_RUN: Run code at 0x7220 (fes_2.fex)
 # => mode: fes, you can send FES commands now
 # *** Flash tool asks user if he would like to do format or upgrade
+#
+# Flash process (A31s) (FES) (boot 2.0)
+# 1. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
+# 2. FES_TRANSMITE (read flag, index:dram): Get 256 of data form 0x7e00 (filed 0xCC)
+# 3. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
+# 4. FES_TRANSMITE: (write flag, index:dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
+# 5. FES_DOWNLOAD: (16 bytes @ 0x0, but no data written after), flags erase|finish (0x17f04)
+# 6. FEL_VERIFY_DEVICE
+# 7. FES_VERIFY_STATUS: flags erase (0x7f04). Return  flags => 0x6a617603, crc => 0
+# 8. FES_DOWNLOAD: write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size
+#                  context: mbr|finish (0x17f01)
+# 9. FES_VERIFY_STATUS: flags mbr (0x7f01). Return flags => 0x6a617603, crc => 0
+# *** Flashing process starts
+# 10.FES_FLASH_SET_ON <= enable nand
+# 11.FES_DOWNLOAD: write bootloader.fex (nanda) at 0x8000 in 65536 chunks, but address offset
+#                  must be divided by 512 => 65536/512 = 128. Thus (0x8000, 0x8080, 0x8100, etc)
+#                  at last chunk :finish context must be set
+# 12.FES_VERIFY_VALUE: I'm pretty sure args are address and data size @todo
+#                      Produces same as FES_VERIFY_STATUS => AWFESVerifyStatusResponse
+#                      and CRC should be the same value as stored in Vbootloader.fex
+# 13.FES_DOWNLOAD/FES_VERIFY_VALUE: write env.fex (nandb) at 0x10000 => because
+#                                   previous partiton size was 0x8000 => see sys_partition.fex).
+# 14.FES_DOWNLOAD/FES_VERIFY_VALUE: write boot.fex (nandc) at 0x18000
+# 15.FES_DOWNLOAD/FES_VERIFY_VALUE: write system.fex (nandd) at 0x20000
+# 16.FES_DOWNLOAD/FES_VERIFY_VALUE: write recovery.fex (nandg) at 0x5B8000
+# 17.FES_FLASH_SET_OFF <= disable nand
+# 18.FES_DOWNLOAD: Send u-boot.fex at 0x00, context is uboot (0x7f02)
+# 19.FES_VERIFY_STATUS: flags uboot (0x7f04). Return flags => 0x6a617603, crc => 0
+# 20.FES_QUERY_STORAGE: => returns 0 [4 bytes] @todo
+# 21.FES_DOWNLOAD: Send boot0_nand.fex at 0x00, context is boot0 (0x7f03)
+# 22.FES_VERIFY_STATUS: flags boot0 (0x7f03). Return flags => 0x6a617603, crc => 0
+# 23.FES_SET_TOOL_MODE: Reboot device (8, 0) @todo
+# *** Weee! We've finished!
+#
+# Partition layout (can be easily recreated using sys_partition.fex or sunxi_mbr.fex)
+# => 1MB = 2048 in NAND addressing
+#  bootloader (nanda) @ 0x8000    [16MB]
+#  env        (nandb) @ 0x10000   [16MB]
+#  boot       (nandc) @ 0x18000   [16MB]
+#  system     (nandd) @ 0x20000   [800MB]
+#  data       (nande) @ 0x1B0000  [2048MB]
+#  misc       (nandf) @ 0x5B0000  [16MB]
+#  recovery   (nandg) @ 0x5B8000  [32MB]
+#  cache      (nandh) @ 0x5C8000  [512MB]
+#  databk     (nandi) @ 0x6C8000  [128MB]
+#  userdisk   (nandj) @ 0x708000  [4096MB - 3584MB => 512MB for 4GB NAND]
 
 # Main class for program. Contains methods to communicate with the device
 class FELix
@@ -196,7 +215,7 @@ class FELix
     puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
     r3
   rescue => e
-    raise "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
+    raise e, "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
     " (" << e.message << ")"
   end
 
@@ -220,7 +239,7 @@ class FELix
     FELHelpers.debug_packet(response, :read) if $options[:verbose]
     recv_data
   rescue => e
-    raise "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
+    raise e, "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
     " (" << e.message << ")"
   end
 
@@ -256,10 +275,11 @@ class FELix
   def read(address, length, tags=[:none], mode=:fel)
     result = ""
     remain_len = length
+    request = AWFELMessage.new
+    request.cmd = FELCmd[:upload] if mode == :fel
+    request.cmd = FESCmd[:upload] if mode == :fes
+
     while remain_len>0
-      request = AWFELMessage.new
-      request.cmd = FELCmd[:upload] if mode == :fel
-      request.cmd = FESCmd[:upload] if mode == :fes
       request.address = address
       if remain_len / FELIX_MAX_CHUNK == 0
         request.len = remain_len
@@ -304,10 +324,11 @@ class FELix
   def write(address, memory, tags=[:none], mode=:fel)
     total_len = memory.bytesize
     start = 0
+    request = AWFELMessage.new
+    request.cmd = FELCmd[:download] if mode == :fel
+    request.cmd = FESCmd[:download] if mode == :fes
+
     while total_len>0
-      request = AWFELMessage.new
-      request.cmd = FELCmd[:download] if mode == :fel
-      request.cmd = FESCmd[:download] if mode == :fes
       request.address = address
       if total_len / FELIX_MAX_CHUNK == 0
         request.len = total_len
@@ -392,24 +413,32 @@ class FELix
     request = AWFELMessage.new
     request.address = 0
     request.len = 16
+    request.cmd = FESCmd[:download]
     request.flags = AWTags[:erase] | AWTags[:finish]
     data = send_request(request.to_binary_s)
     if data == nil
       raise "Failed to send request (data: #{data})"
     end
+
+    data = send_request(AWFELStandardRequest.new.to_binary_s)
+    if data == nil
+      raise "Failed to send request (data: #{data})"
+    end
+
     data = recv_request(8)
     if data == nil || data.bytesize != 8
       raise "Failed to receive device status (data: #{data})"
     end
+
     status = AWFELStatusResponse.read(data)
     if status.state > 0
-      raise "Command failed (Status #{status.state})"
+     raise "Command failed (Status #{status.state})"
     end
     verify_status(:erase)
   end
 
   # Verify last operation status
-  # @param tags [Symbol] operation tag (zero or more of AWTags)
+  # @param tags [Hash, Symbol] operation tag (zero or more of AWTags)
   # @return [AWFESVerifyStatusResponse] device status
   # @raise [String] error name
   # @note Use only in :fes mode
@@ -418,7 +447,11 @@ class FELix
     request.cmd = FESCmd[:verify_status]
     request.address = 0
     request.len = 0
-    tags.each {|t| request.flags |= AWTags[t]}
+    if tags.kind_of?(Hash)
+      tags.each {|t| request.flags |= AWTags[t]}
+    else
+      request.flags |= AWTags[tags]
+    end
     data = send_request(request.to_binary_s)
     raise "Failed to send request (response len: #{data.bytesize} !=" <<
     " 13)" if data.length != 13
@@ -442,7 +475,7 @@ class FELix
     status_response
   end
 
-  # Load / unload flash storage (handle for :flash_set_on, flash_set_off)
+  # Attach / Detach flash storage (handles `:flash_set_on` and `:flash_set_off`)
   # @param how [TrueClass, FalseClass] desired state of flash
   # @raise [String] error name
   # @note Use only in :fes mode
@@ -464,6 +497,98 @@ class FELix
 
   end
 
+  # Send FES_TRANSMITE request
+  # Can be used to read/write memory in FES mode
+  #
+  # @param direction [Symbol] one of FESTransmiteFlag (`:download` or `:upload`)
+  # @param opts [Hash] Arguments
+  # @option opts :address [Integer] place in memory to transmite
+  # @option opts :memory [String] data to write (use only with `:write`)
+  # @option opts :media_index [Symbol] one of FESIndex (default `:dram`)
+  # @option opts :length [Integer] size of data (use only with `:read`)
+  # @note Use only in :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this
+  def transmite(direction, *opts)
+    opts = opts.first
+    opts[:media_index] ||= :dram
+    start = 0
+    if direction == :write
+      raise "Missing arguments for FES_TRANSMITE(download)" unless opts[:memory] &&
+        opts[:address]
+
+      total_len = opts[:memory].bytesize
+      address = opts[:address]
+
+      request = AWFESTrasportRequest.new # Little optimization
+      request.direction = FESTransmiteFlag[direction]
+      request.media_index = FESIndex[opts[:media_index]]
+
+      while total_len>0
+        request.address = address
+        if total_len / FELIX_MAX_CHUNK == 0
+          request.len = total_len
+        else
+          request.len = FELIX_MAX_CHUNK
+        end
+        data = send_request(request.to_binary_s)
+        if data == nil
+          raise "Failed to send request (#{request.cmd})"
+        end
+        data = send_request(opts[:memory].byteslice(start, request.len))
+        if data == nil
+          raise "Failed to send data (#{start}/#{opts[:memory].bytesize})"
+        end
+        data = recv_request(8)
+        if data == nil || data.bytesize != 8
+          raise "Failed to receive device status (data: #{data})"
+        end
+        status = AWFELStatusResponse.read(data)
+        if status.state > 0
+          raise "Command failed (Status #{status.state})"
+        end
+        start+=request.len
+        total_len-=request.len
+        next_sector=request.len / 512
+        address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
+        print "\r* #{$options[:mode]}: Writing data (" <<
+        "#{start}/#{opts[:memory].bytesize} bytes)" unless $options[:verbose]
+      end
+    elsif direction == :read
+      raise "Missing arguments for FES_TRANSMITE(upload)" unless opts[:length] &&
+        opts[:address]
+
+      print "\r* Reading" unless $options[:verbose]
+
+      request = AWFESTrasportRequest.new
+      request.address = opts[:address]
+      request.len = opts[:length]
+      request.direction = FESTransmiteFlag[direction]
+      request.media_index = FESIndex[opts[:media_index]]
+      data = send_request(request.to_binary_s)
+      raise "Failed to send AWFESTrasportRequest (response len: " <<
+      "#{data.bytesize} != 13)" if data.bytesize != 13
+
+      output = recv_request(request.len)
+
+      # Rescue if we received AWUSBResponse
+      output = recv_request(request.len) if output.bytesize !=
+        request.len && output.bytesize == 13
+      # Rescue if we received AWFELStatusResponse
+      output = recv_request(request.len) if output.bytesize !=
+        request.len && output.bytesize == 8
+
+      raise "Data size mismatch (data len #{output.bytesize}" <<
+      " != #{request.len})" if output.bytesize != request.len
+
+      status = recv_request(8)
+      raise "Failed to get device status (data: #{status})" if status.bytesize != 8
+      fel_status = AWFELStatusResponse.read(status)
+      raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0
+      output
+    else
+      raise "Unknown direction '(#{direction})'"
+    end
+  end
+
 end
 
 $options = {}
@@ -476,8 +601,8 @@ begin
   # ComputerInteger: hex strings (0x....) or decimal
   ComputerInteger = /(?:0x[\da-fA-F]+(?:_[\da-fA-F]+)*|\d+(?:_\d+)*)/
   Modes = [:fel, :fes]
-  AddressCmds = [:write, :read, :run]
-  LengthCmds = [:read]
+  AddressCmds = [:write, :read, :run, :transmite]
+  LengthCmds = [:read, :transmite]
   OptionParser.new do |opts|
       opts.banner = "Usage: FELix.rb action [options]"
       opts.separator "Actions:"
@@ -518,8 +643,8 @@ begin
          $options[:action] = :write
          $options[:file] = f
       end
-      opts.on("--request id", ComputerInteger, "Send a standard " <<
-        "request (experimental)") do |f|
+      opts.on("--request id", ComputerInteger, "Experimental ".red << "Send " <<
+        "a standard request , then result response of #{FELIX_MAX_CHUNK} bytes") do |f|
          $options[:action] = :request
          $options[:request] = f[0..1] == "0x" ? Integer(f, 16) : f.to_i
       end
@@ -530,8 +655,14 @@ begin
         $options[:action] = :storage
         $options[:how] = b
       end
+      opts.on("--transmite file", "Read/write. May be used with --index" <<
+        ", --address, --length. Omit --length if you want to write. Default" <<
+        " index is :dram") do |f|
+         $options[:action] = :transmite
+         $options[:file] = f
+      end
 
-      opts.separator "Options:"
+      opts.separator "\nOptions:"
       opts.on("-d", "--device number", Integer,
       "Select device number (default 0)") { |id| $options[:device] = id }
 
@@ -547,6 +678,10 @@ begin
       "modes (" << Modes.join(", ") << ")") do |m|
         $options[:mode] = m.to_sym
       end
+      opts.on("-i", "--index index", FESIndex.keys, "Set media index " <<
+      "(" << FESIndex.keys.join(", ") << ")") do |i|
+        $options[:index] = i.to_sym
+      end
       opts.on("-t", "--tags t,a,g", Array, "One or more tag (" <<
       AWTags.keys.join(", ") << ")") do |t|
         $options[:tags] = t.map(&:to_sym) # Convert every value to symbol
@@ -557,14 +692,23 @@ begin
   end.parse!
   $options[:tags] = [:none] unless $options[:tags]
   $options[:mode] = :fel unless $options[:mode]
+  # if argument is specfied we want to receive data from the device
+  $options[:direction] = $options[:length] ? :read : :write
+
   unless ($options[:tags] - AWTags.keys).empty?
     puts "Invalid tag. Please specify one or more of " << AWTags.keys.join(", ")
     exit
   end
-  raise OptionParser::MissingArgument if($options[:action] == :read &&
-    ($options[:length] == nil || $options[:address] == nil))
-  raise OptionParser::MissingArgument if(($options[:action] == :write ||
-  $options[:action] == :run) && $options[:address] == nil)
+  raise OptionParser::MissingArgument if($options[:direction] == :read &&
+    ($options[:length] == nil || $options[:address] == nil) &&
+    [:read, :transmite].include?($options[:action]))
+  raise OptionParser::MissingArgument if($options[:direction] == :write &&
+     $options[:address] == nil && [:write, :transmite, :run].
+     include?($options[:action]))
+#  raise OptionParser::MissingArgument if($options[:action] == :read &&
+#    ($options[:length] == nil || $options[:address] == nil))
+#  raise OptionParser::MissingArgument if(($options[:action] == :write ||
+#    $options[:action] == :run) && $options[:address] == nil)
 rescue OptionParser::MissingArgument
   puts "Missing argument. Type FELix.rb --help to see usage"
   exit
@@ -636,8 +780,6 @@ begin
     end
   when :read
     begin
-      #print "* #{$options[:mode]}: Reading data (#{$options[:length]}" <<
-      #  " bytes)" unless $options[:verbose]
       data = fel.read($options[:address], $options[:length], $options[:tags],
         $options[:mode])
       File.open($options[:file], "w") { |f| f.write(data) }
@@ -660,8 +802,12 @@ begin
     end
   when :run
     begin
+      print "* #{$options[:mode]}: Executing code @ 0x%08x" %
+        $options[:address] unless $options[:verbose]
       fel.run($options[:address], $options[:mode])
+      puts "\t[OK]".green unless $options[:verbose]
     rescue => e
+      puts "\t[FAIL]".red unless $options[:verbose]
       puts "Failed to execute: #{e.message} at #{e.backtrace.join("\n")}"
     end
   when :request
@@ -671,19 +817,37 @@ begin
       puts "Failed to send a request(#{$options[:request]}): #{e.message}" <<
         " at #{e.backtrace.join("\n")}"
     end
+  when :transmite
+    begin
+      if $options[:direction] == :write
+        print "* Reading file" unless $options[:verbose]
+        data = File.read($options[:file])
+        print " (#{data.bytesize} bytes)" unless $options[:verbose]
+      end
+      data ||= nil
+      data = fel.transmite($options[:direction], :address => $options[:address],
+        :length => $options[:length], :memory => data, :media_index =>
+        $options[:index])
+      if $options[:direction] == :read && data
+        print "\r* Writing data (#{data.length} bytes )"
+        File.open($options[:file], "w") { |f| f.write(data) }
+      end
+      puts "\t[OK]".green unless $options[:verbose]
+    rescue => e
+      puts "\t[FAIL]".red unless $options[:verbose]
+      puts "Failed to transmite: #{e.message} at #{e.backtrace.join("\n")}"
+    end
   else
     puts "No action specified"
   end
 
-  # Cleanup the handle
-  fel.bailout
-
 rescue LIBUSB::ERROR_NOT_SUPPORTED
   puts "\t[FAIL]".red
   puts "Error: You must install libusb filter on your usb device driver"
-  fel.bailout
 rescue => e
   puts "\t[FAIL]".red
   puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
-  fel.bailout
+ensure
+  # Cleanup the handle
+  fel.bailout if fel
 end
