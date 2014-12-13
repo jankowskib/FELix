@@ -103,28 +103,33 @@ class FELHelpers
         else
           print "AWUnknown (0x%x)".red % p.type
         end
-        puts "\t(Prepare for #{dir.to_s} of #{p.len} bytes)"
+        puts "\t(Prepare for #{dir} of #{p.len} bytes)"
         #puts p.inspect
       elsif packet[0..7] == "AWUSBFEX"
         p = AWFELVerifyDeviceResponse.read(packet)
-        puts "<-- (% 5d) " % packet.length << "FELVerifyDeviceResponse".
+        puts "<-- (% 5d) " % packet.bytesize << "FELVerifyDeviceResponse".
         light_blue << "\t%s, FW: %d, mode: %s" % [ board_id_to_str(p.board), p.fw,
           AWDeviceMode.key(p.mode) ]
       elsif packet[0..3] == "AWUS" && packet.length == 13
         p = AWUSBResponse.read(packet)
-        puts "<-- (% 5d) " % packet.length << "AWUSBResponse".yellow <<
+        puts "<-- (% 5d) " % packet.bytesize << "AWUSBResponse".yellow <<
         "\t0x%x, status %s" % [ p.tag, AWUSBStatus.key(p.csw_status) ]
       elsif packet[0..3] == "DRAM" && packet.length == 136
         p = AWDRAMData.read(packet)
-        puts "<-- (% 5d) " % packet.length << "AWDRAMData".light_blue
+        puts "<-- (% 5d) " % packet.bytesize << "AWDRAMData".light_blue
         p p
       elsif packet.length == 512
         p = AWSystemParameters.read(packet)
-        puts "<-- (% 5d) " % packet.length << "AWSystemParameters".light_blue
+        puts "<-- (% 5d) " % packet.bytesize << "AWSystemParameters".light_blue
         p p
+      elsif packet.length == 12 && dir == :read
+        p = AWFESVerifyStatusResponse.read(packet)
+        puts "<-- (% 5d) " % packet.bytesize << "AWFESVerifyStatusResponse ".
+         light_blue << "flags: 0x%x, crc: 0x%x, last_err %d" % [p.flags,
+         p.fes_crc, p.last_error]
       else
         return :unk if dir == :unk
-        print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.length
+        print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.bytesize
         if packet.length == 16
           p = AWFELMessage.read(packet)
           case p.cmd
@@ -132,19 +137,19 @@ class FELHelpers
             .light_blue <<  " (0x#{FELCmd[:verify_device]})"
           when FESCmd[:transmite]
             p = AWFESTrasportRequest.read(packet)
-            puts "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue <<
-            FESTransmiteFlag.key(p.direction).to_s <<
-            ", index #{p.media_index}, addr 0x%08x, len %d" % [p.address,
-              p.len]
+            print "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue
+            print FESTransmiteFlag.key(p.direction).to_s
+            print "(0x%04x)" % p.direction unless FESTransmiteFlag.key(p.direction)
+            puts ", tag #{p.tag}, index #{p.media_index}, addr 0x%08x, len %d," % [
+              p.address, p.len] << " reserved %s" % p.reserved.inspect
           when FESCmd[:download], FESCmd[:verify_status], FELCmd[:download],
             FELCmd[:upload], FESCmd[:run], FELCmd[:run]
             p = AWFELMessage.read(packet)
-            print "FEL#{FELCmd.key(p.cmd).camelize}".
+            print "FEL#{FELCmd.key(p.cmd).camelize}:".
             light_blue if FELCmd.has_value?(p.cmd)
-            print "FES#{FESCmd.key(p.cmd).camelize}".
+            print "FES#{FESCmd.key(p.cmd).camelize}:".
             light_blue if FESCmd.has_value?(p.cmd)
-            puts " (0x%.2X)\n"  % p.cmd <<
-            "\ttag: #{p.tag}, %d bytes @ 0x%08x" % [p.len, p.address] <<
+            puts " tag: #{p.tag}, %d bytes @ 0x%02x" % [p.len, p.address] <<
             ", flags #{tags_to_s(p.flags)} (0x%04x)" % p.flags
           else
             print "FEL#{FELCmd.key(p.cmd).camelize}".
