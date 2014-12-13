@@ -81,10 +81,13 @@ AWUBootWorkMode = {
   :outer_update	                   => 0x21
 }
 
-#Flag for FESCmd[:transmite]
+# Flag for FESCmd[:transmite]
 FESTransmiteFlag = {
-  :download                        => 0x10,
-  :upload                          => 0x20
+  :write                           => 0x10, # aka :download
+  :read                            => 0x20, # aka :upload
+# used on boot1.0 (index must be 0x20)
+  :start                           => 0x40, # [not sure]
+  :finish                          => 0x80, # [not sure]
 }
 
 #TAGS FOR FES_DOWN
@@ -118,7 +121,8 @@ FESIndex = {
   :dram                            => 0x0,
   :physical                        => 0x1,
   :log                             => 0x2,
-# these two below are usable on boot 1.0
+# these below are usable on boot 1.0
   :nand                            => 0x2,
-  :card                            => 0x3
+  :card                            => 0x3,
+  :unknown                         => 0x20
 }
