@@ -47,7 +47,7 @@ FESCmd = {
   :download                        => 0x206,
   :upload                          => 0x207,
   :verify                          => 0x208,
-  :query_storage                   => 0x209,
+  :query_storage                   => 0x209, # used to check if we boot from nand or sdcard
   :flash_set_on                    => 0x20A, # execs sunxi_sprite_init(0) => no data
   :flash_set_off                   => 0x20B, # execs sunxi_sprite_exit(1) => no data
   :verify_value                    => 0x20C,
@@ -96,11 +96,11 @@ AWTags = {
 #  :data_mask                       => 0x7FFF,
 #  :dram_mask                       => 0x7F00,
   :dram                            => 0x7F00,
-  :mbr                             => 0x7F01,
+  :mbr                             => 0x7F01, # this flag actually perform erase
   :uboot                           => 0x7F02,
   :boot1                           => 0x7F02,
   :boot0                           => 0x7F03,
-  :erase                           => 0x7F04,
+  :erase                           => 0x7F04, # forces platform->eraseflag to 1
   :pmu_set                         => 0x7F05,
   :unseq_mem_for_read              => 0x7F06,
   :unseq_mem_for_write             => 0x7F07,

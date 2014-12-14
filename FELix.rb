@@ -24,7 +24,7 @@ require 'bindata'
 require_relative 'FELStructs'
 require_relative 'FELHelpers'
 
-#Routines
+# Routines (Send command and read data)
 # 1. Write (--> send | <-- recv)
 # --> AWUSBRequest(AW_USB_WRITE, len)
 # --> WRITE(len)
@@ -74,6 +74,7 @@ require_relative 'FELHelpers'
 #    (...)
 #    => 0x4A000000: u-boot.fex
 #    => 0x4D415244: SYS_PARA_LOG (second instance?)
+#    => 0x5ffe7f08: MBR [not sure]
 #    => 0x80600000: FEX_SRAM_FOR_FES_TEMP_BUF (65536 bytes)
 #
 # Booting to FES (boot 2.0)
@@ -127,9 +128,14 @@ require_relative 'FELHelpers'
 # 1. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
 # 2. FES_TRANSMITE (read flag, index:dram): Get 256 of data form 0x7e00 (filed 0xCC)
 # 3. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
+# These 3 steps above seems optional
 # 4. FES_TRANSMITE: (write flag, index:dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
 # 5. FES_DOWNLOAD: (16 bytes @ 0x0, but no data written after), flags erase|finish (0x17f04)
-# 6. FEL_VERIFY_DEVICE
+#                  It took me LONG time, but I know why it sends 16 bytes. Actually
+#                  the data (16 bytes) is written after, but it could be anything - it's not used at all.
+#                  They chose 16 bytes becuase thats length of (FEL_VERIFY_DEVICE
+#                  request => (see: next step), and FES_DOWNLOAD request can not be sent with 0 data
+# 6. FEL_VERIFY_DEVICE: Send to make FES_DOWNLOAD request valid. This request is not executed at all
 # 7. FES_VERIFY_STATUS: flags erase (0x7f04). Return  flags => 0x6a617603, crc => 0
 # 8. FES_DOWNLOAD: write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size
 #                  context: mbr|finish (0x17f01)
@@ -157,7 +163,7 @@ require_relative 'FELHelpers'
 # *** Weee! We've finished!
 #
 # Partition layout (can be easily recreated using sys_partition.fex or sunxi_mbr.fex)
-# => 1MB = 2048 in NAND addressing
+# => 1MB = 2048 in NAND addressing / 1 sector = 512 bytes
 #  bootloader (nanda) @ 0x8000    [16MB]
 #  env        (nandb) @ 0x10000   [16MB]
 #  boot       (nandc) @ 0x18000   [16MB]
@@ -186,6 +192,7 @@ class FELix
   # Clean up on and finish program
   def bailout
     print "* Finishing"
+    @handle.release_interface(0) if @handle
     @handle.close if @handle
     puts "\t[OK]".green
     exit
@@ -210,10 +217,19 @@ class FELix
     r2 = @handle.bulk_transfer(:dataOut => data, :endpoint => @usb_out)
     puts "Sent ".green << r2.to_s.yellow << " bytes".green if $options[:verbose]
   # 3. Get AWUSBResponse
-    r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
-    FELHelpers.debug_packet(r3, :read) if $options[:verbose]
-    puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
-    r3
+  #  begin
+  #sleep 60
+      r3 = @handle.interrupt_transfer(:dataIn => 13, :endpoint => @usb_in)
+      FELHelpers.debug_packet(r3, :read) if $options[:verbose]
+      puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
+      r3
+  #  rescue => e
+  #    p e
+      # Some request takes a lot of time (i.e. NAND format). Try to wait a second and check again.
+  #    timeout-=1
+  #    sleep 1
+  #    retry if timeout>0
+  #  end
   rescue => e
     raise e, "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
     " (" << e.message << ")"
@@ -412,7 +428,7 @@ class FELix
   def format_device
     request = AWFELMessage.new
     request.address = 0
-    request.len = 16
+    request.len = 1
     request.cmd = FESCmd[:download]
     request.flags = AWTags[:erase] | AWTags[:finish]
     data = send_request(request.to_binary_s)
@@ -420,10 +436,8 @@ class FELix
       raise "Failed to send request (data: #{data})"
     end
 
-    data = send_request(AWFELStandardRequest.new.to_binary_s)
-    if data == nil
-      raise "Failed to send request (data: #{data})"
-    end
+    data = send_request("?") # dummy data to make request valid (see routines)
+    raise "Failed to send request (data: #{data})" if data == nil
 
     data = recv_request(8)
     if data == nil || data.bytesize != 8
@@ -476,12 +490,15 @@ class FELix
   end
 
   # Attach / Detach flash storage (handles `:flash_set_on` and `:flash_set_off`)
-  # @param how [TrueClass, FalseClass] desired state of flash
+  # @param how [Symbol] desired state of flash (`:on` or `:off`)
   # @raise [String] error name
-  # @note Use only in :fes mode
+  # @note Use only in :fes mode. MBR must be written before
   def set_storage_state(how)
+    raise "Invalid parameter state (#{how})" unless [:on, :off].include? how
     request = AWFELStandardRequest.new
-    request.cmd = how ? FESCmd[:flash_set_on] : FESCmd[:flash_set_off]
+    request.cmd = FESCmd[:flash_set_on] if how == :on
+    request.cmd = FESCmd[:flash_set_off] if how == :off
+
     data = send_request(request.to_binary_s)
     raise "Failed to send request (response len: #{data.bytesize} !=" <<
       " 13)" if data.bytesize != 13
@@ -651,7 +668,8 @@ begin
 
       opts.separator "* Only in FES mode".light_blue.underline
       opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
-      opts.on("--[no-]storage", "Enable/disable NAND driver") do |b|
+      opts.on("--nand how", [:on, :off], "Enable/disable NAND driver. Use 'on'" <<
+      " or 'off' as parameter)") do |b|
         $options[:action] = :storage
         $options[:how] = b
       end
