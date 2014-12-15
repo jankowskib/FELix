@@ -16,12 +16,12 @@
 
 # Change the way library allocs memory to avoid nasty memory segmentation
 class LIBUSB::Transfer
-  # Allocate len bytes of data buffer for input transfer.
+  # Allocate #FELIX_MAX_CHUNK bytes of data buffer for input transfer.
   #
   # @param [Fixnum]  len  Number of bytes to allocate
   # @param [String, nil] data  some data to initialize the buffer with
   def alloc_buffer(len, data=nil)
-    if !@buffer || len>@buffer.size
+    if !@buffer
       free_buffer if @buffer
       # HACK: Avoid crash when memory is reallocated
       @buffer = FFI::MemoryPointer.new(FELIX_MAX_CHUNK, 1, false)
