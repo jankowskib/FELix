@@ -48,7 +48,7 @@ require_relative 'FELHelpers'
 # => 0x7010 - 0x7210: SYS_PARA (512 bytes)
 # => 0x7210 - 0x7220: SYS_PARA_LOG_ADDR (16 bytes)
 # => 0x7220 - 0x7D00: SYS_INIT_PROC_ADDR (2784 bytes)
-# => 0x7D00 - 0x7E00: ? (256 bytes)
+# 0x7D00 - 0x7E00: ? (256 bytes)
 # 0x7E00 - ?     : DATA_START_ADDR
 # 0x40000000: DRAM_BASE
 # => 0x40000000 - 0x40008000: FEX_SRAM_A_BASE (32768 bytes)
@@ -316,7 +316,13 @@ class FELix
       raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0
       result << output
       remain_len-=request.len
-      address+=request.len
+      # if EFEX_TAG_DRAM isnt set we read nand/sdcard
+      if request.flags & AWTags[:dram] == 0 && mode == :fes
+        next_sector=request.len / 512
+        address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
+      else
+        address+=request.len
+      end
       print "\r* #{$options[:mode]}: Reading data (" <<
       "#{length-remain_len}/#{$options[:length]} bytes)" unless $options[:verbose]
     end
@@ -330,6 +336,8 @@ class FELix
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @raise [String] error name
   def write(address, memory, tags=[:none], mode=:fel)
+    raise "Memory not specifed" unless memory
+    raise "Address not specifed" unless address
     total_len = memory.bytesize
     start = 0
     request = AWFELMessage.new
@@ -362,7 +370,13 @@ class FELix
       end
       start+=request.len
       total_len-=request.len
-      address+=request.len
+      # if EFEX_TAG_DRAM isnt set we read nand/sdcard
+      if request.flags & AWTags[:dram] == 0 && mode == :fes
+        next_sector=request.len / 512
+        address+=( next_sector ? next_sector : 1) # Wriet next sector if its less than 512
+      else
+        address+=request.len
+      end
       print "\r* #{$options[:mode]}: Writing data (" <<
       "#{start}/#{memory.bytesize} bytes)" unless $options[:verbose]
     end
@@ -564,7 +578,9 @@ class FELix
     elsif direction == :read
       raise "Missing arguments for FES_TRANSMITE(upload)" unless opts[:length] &&
         opts[:address]
-
+      # @todo Add support for reading>65536 data
+      raise "reading more than #{FELIX_MAX_CHUNK} bytes is not implemented" <<
+        " yet!" if opts[:length] > FELIX_MAX_CHUNK
       print "\r* Reading" unless $options[:verbose]
 
       request = AWFESTrasportRequest.new
@@ -642,13 +658,13 @@ begin
       opts.on("--run", "Execute code. Use with --address") do
         $options[:action] = :run
       end
-      opts.on("--read file", String, "Read memory to file. Use with" <<
-        " --address and --length") do |f|
+      opts.on("--read file", String, "Read memory to file. Use with --address" <<
+        " and --length. In FES mode you can additionally specify --tags") do |f|
          $options[:action] = :read
          $options[:file] = f
        end
       opts.on("--write file", String, "Write file to memory. Use with" <<
-        " --address") do |f|
+        " --address. In FES mode you can additionally specify --tags") do |f|
          $options[:action] = :write
          $options[:file] = f
       end
@@ -703,7 +719,7 @@ begin
   $options[:tags] = [:none] unless $options[:tags]
   $options[:mode] = :fel unless $options[:mode]
   # if argument is specfied we want to receive data from the device
-  $options[:direction] = $options[:length] ? :read : :write
+  $options[:direction] = [:read, :transmite].include?($options[:action]) ? :read : :write
 
   unless ($options[:tags] - AWTags.keys).empty?
     puts "Invalid tag. Please specify one or more of " << AWTags.keys.join(", ")
