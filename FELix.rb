@@ -138,16 +138,17 @@ require_relative 'FELHelpers'
 # 6. FEL_VERIFY_DEVICE: Send to make FES_DOWNLOAD request valid. This request is not executed at all
 # 7. FES_VERIFY_STATUS: flags erase (0x7f04). Return  flags => 0x6a617603, crc => 0
 # 8. FES_DOWNLOAD: write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size
-#                  context: mbr|finish (0x17f01)
+#                  context: mbr|finish (0x17f01), inits NAND
 # 9. FES_VERIFY_STATUS: flags mbr (0x7f01). Return flags => 0x6a617603, crc => 0
 # *** Flashing process starts
-# 10.FES_FLASH_SET_ON <= enable nand
+# 10.FES_FLASH_SET_ON: enable nand (actually it may intialize MMC I suppose),
+#                      not needed if we've done step 8
 # 11.FES_DOWNLOAD: write bootloader.fex (nanda) at 0x8000 in 65536 chunks, but address offset
 #                  must be divided by 512 => 65536/512 = 128. Thus (0x8000, 0x8080, 0x8100, etc)
 #                  at last chunk :finish context must be set
 # 12.FES_VERIFY_VALUE: I'm pretty sure args are address and data size @todo
 #                      Produces same as FES_VERIFY_STATUS => AWFESVerifyStatusResponse
-#                      and CRC should be the same value as stored in Vbootloader.fex
+#                      and CRC must be the same value as stored in Vbootloader.fex
 # 13.FES_DOWNLOAD/FES_VERIFY_VALUE: write env.fex (nandb) at 0x10000 => because
 #                                   previous partiton size was 0x8000 => see sys_partition.fex).
 # 14.FES_DOWNLOAD/FES_VERIFY_VALUE: write boot.fex (nandc) at 0x18000
@@ -164,6 +165,7 @@ require_relative 'FELHelpers'
 #
 # Partition layout (can be easily recreated using sys_partition.fex or sunxi_mbr.fex)
 # => 1MB = 2048 in NAND addressing / 1 sector = 512 bytes
+#  mbr        (sunxi_mbr.fex) @ 0 [16MB]
 #  bootloader (nanda) @ 0x8000    [16MB]
 #  env        (nandb) @ 0x10000   [16MB]
 #  boot       (nandc) @ 0x18000   [16MB]
@@ -281,6 +283,8 @@ class FELix
   # @return [String] requested data
   # @raise [String] error name
   def read(address, length, tags=[:none], mode=:fel)
+    raise "Length not specifed" unless length
+    raise "Address not specifed" unless address
     result = ""
     remain_len = length
     request = AWFELMessage.new
@@ -370,10 +374,10 @@ class FELix
       end
       start+=request.len
       total_len-=request.len
-      # if EFEX_TAG_DRAM isnt set we read nand/sdcard
+      # if EFEX_TAG_DRAM isnt set we write nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
         next_sector=request.len / 512
-        address+=( next_sector ? next_sector : 1) # Wriet next sector if its less than 512
+        address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
       else
         address+=request.len
       end
@@ -428,10 +432,15 @@ class FELix
   end
 
   # Erase NAND flash
-  # @return [AWFESVerifyStatusResponse] operation status
+  # @param mbr [String] new mbr. Must have 65536 bytes of length
+  # @return [AWFESVerifyStatusResponse] result of sunxi_sprite_download_mbr (crc:-1 if fail)
   # @raise [String] error name
   # @note Use only in :fes mode
-  def format_device
+  def format_device(mbr)
+    raise "No MBR provided" unless mbr
+    mbr = File.read(mbr)
+    raise "MBR is too small" unless mbr.bytesize == 65536
+    # 1. Force platform->erase_flag
     request = AWFELMessage.new
     request.address = 0
     request.len = 1
@@ -451,10 +460,14 @@ class FELix
     end
 
     status = AWFELStatusResponse.read(data)
-    if status.state > 0
-     raise "Command failed (Status #{status.state})"
-    end
-    verify_status(:erase)
+    raise "Command failed (Status #{status.state})" if status.state > 0
+
+    # 2. Verify status (actually this is unecessary step [last_err is not set at all])
+    # verify_status(:erase)
+    # 3. Write MBR
+    write(0, mbr, [:mbr, :finish], :fes)
+    # 4. Get result value of sunxi_sprite_verify_mbr
+    verify_status(:mbr)
   end
 
   # Verify last operation status
@@ -523,7 +536,7 @@ class FELix
   # Send FES_TRANSMITE request
   # Can be used to read/write memory in FES mode
   #
-  # @param direction [Symbol] one of FESTransmiteFlag (`:download` or `:upload`)
+  # @param direction [Symbol] one of FESTransmiteFlag (`:write` or `:read`)
   # @param opts [Hash] Arguments
   # @option opts :address [Integer] place in memory to transmite
   # @option opts :memory [String] data to write (use only with `:write`)
@@ -675,7 +688,10 @@ begin
       end
 
       opts.separator "* Only in FES mode".light_blue.underline
-      opts.on("--format", "Erase NAND Flash") { $options[:action] = :format }
+      opts.on("--format mbr", "Erase NAND Flash and writes new MBR") do |f|
+        $options[:action] = :format
+        $options[:file] = f
+      end
       opts.on("--nand how", [:on, :off], "Enable/disable NAND driver. Use 'on'" <<
       " or 'off' as parameter)") do |b|
         $options[:action] = :storage
@@ -788,8 +804,9 @@ begin
     end
   when :format
     begin
-      print "* Formating NAND" unless $options[:verbose]
-      data = fel.format_device
+      print "* Formating NAND (it may take ~60 seconds)" unless $options[:verbose]
+      status = fel.format_device($options[:file])
+      raise "Flash init failed (#{status.crc})" if status.crc != 0
       puts "\t[OK]".green unless $options[:verbose]
     rescue => e
       puts "\t[FAIL]".red unless $options[:verbose]
@@ -798,7 +815,7 @@ begin
   when :storage
     begin
       print "* Setting flash state to #{$options[:how]}" unless $options[:verbose]
-      data = fel.set_storage_state($options[:how])
+      fel.set_storage_state($options[:how])
       puts "\t[OK]".green unless $options[:verbose]
     rescue => e
       puts "\t[FAIL]".red unless $options[:verbose]

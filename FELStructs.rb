@@ -84,9 +84,9 @@ class AWFELVerifyDeviceResponse < BinData::Record # size 32
 end
 
 class AWFESVerifyStatusResponse < BinData::Record # size 12
-  uint32le :flags # always 0x6a617603
-  int32le  :last_error # 0 if OK, -1 if fail
+  uint32le :flags   # always 0x6a617603
   uint32le :fes_crc
+  int32le  :crc     # also last_error (0 if OK, -1 if fail)
 end
 
 class AWDRAMData < BinData::Record # size 136?
