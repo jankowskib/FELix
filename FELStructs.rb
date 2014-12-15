@@ -176,3 +176,31 @@ class AWSystemParameters < BinData::Record
   uint32le :dram_size, :initial_value => (1024 << 20) # 1024 MB
   array    :unused, :type => :uint32le, :read_until => :eof
 end
+
+# Size 128
+class Partition < BinData::Record
+  endian :little
+  uint32 :address_high
+  uint32 :address_low
+  uint32 :lenhi
+  uint32 :lenlo
+  string :classname, :length => 16
+  string :name, :length => 16
+  uint32 :user_type
+  uint32 :keydata
+  uint32 :ro
+  array  :reserved, :type => :uint8, :initial_length => 68
+end
+
+# Structure for SUNXI boot, record size: 16384
+class AWNandMBR < BinData::Record
+  uint32le :crc
+  uint32le :version
+  string   :magic, :length => 8, :initial_value => "softw311" # or softw411
+  uint32le :copy
+  uint32le :part_index
+  uint32le :mbr_count
+  uint32le :stamp
+  array    :part, :type => :partition, :initial_length => 120
+  array    :reserved, :type => :uint8, :initial_length => 992
+end

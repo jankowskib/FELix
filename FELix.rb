@@ -658,8 +658,12 @@ begin
         end
         exit
       end
-      opts.on("--decode path", String, "Decodes packets from Wireshark dump") do |f|
+      opts.on("--decode path", String, "Decode packets from Wireshark dump") do |f|
         FELHelpers.debug_packets(f)
+        exit
+      end
+      opts.on("--decode-mbr path", String, "Decode sunxi-mbr.fex") do |f|
+        FELHelpers.debug_mbr(f)
         exit
       end
       opts.on("--version", "Show version") do

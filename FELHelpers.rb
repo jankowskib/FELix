@@ -211,5 +211,37 @@ class FELHelpers
       end
     end
 
+    # Decode sunxi_mbr.fex
+    #
+    # Produces following output
+    #     bootloader (nanda) @ 0x8000    [16MB]
+    #     env        (nandb) @ 0x10000   [16MB]
+    #     ...
+    # @param file [String] file name
+    def debug_mbr(file)
+      mbr = File.read(file)
+      raise "MBR is too small" unless mbr.bytesize == 65536
+      mbr = AWNandMBR.read(mbr)
+      mbr.each_pair do |k, v|
+        next if k == :reserved
+        print "%-40s" % k.to_s.yellow unless k == :part
+        case k
+        when :crc, :stamp then puts "0x%08x" % v
+        when :part
+          puts "Partitions:".light_blue
+          c = 'a'
+          v.each do |p|
+            break if p.name == "\0"*16
+            print "%-40s" % p.name.strip.yellow
+            puts "(nand%s) @ 0x%08x [%d]" % [c,
+              p.address_low, p.lenlo]
+            c.next!
+          end
+        else
+          puts "#{v}"
+        end
+      end
+    end
+
   end
 end
