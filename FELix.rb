@@ -504,14 +504,14 @@ class FELix
 
   end
 
-  # Send FES_TRANSMITE request
-  # Can be used to read/write memory in FES mode
+  # Send a FES_TRANSMITE request
   #
-  # @param direction [Symbol] one of FESTransmiteFlag (`:write` or `:read`)
+  # Can be used to read/write memory in FES mode
+  # @param direction [Symbol<FESTransmiteFlag>] one of FESTransmiteFlag (`:write` or `:read`)
   # @param opts [Hash] Arguments
   # @option opts :address [Integer] place in memory to transmite
   # @option opts :memory [String] data to write (use only with `:write`)
-  # @option opts :media_index [Symbol] one of FESIndex (default `:dram`)
+  # @option opts :media_index [Symbol<FESIndex>] one of index (default `:dram`)
   # @option opts :length [Integer] size of data (use only with `:read`)
   # @note Use only in :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this
   def transmite(direction, *opts)
@@ -598,6 +598,36 @@ class FELix
     end
   end
 
+  # Send a FES_SET_TOOL_MODE request
+  #
+  # Can be used to change device state (i.e. reboot)
+  # or to change u-boot work mode
+  # @param mode [Symbol<AWUBootWorkMode>] a mode
+  # @param action [Symbol<AWActions>] an action.
+  #   if `action` is `:none` and `mode` is not `:usb_tool_update` then
+  #   action is fetched from sys_config's platform->next_work key.
+  #   If the key not exist then defaults to `:normal`
+  # @note Use only in :fes mode
+  # @note Action parameter is respected only if `mode` is `:usb_tool_update`
+  # @note This command is only usable for reboot
+  def set_tool_mode(mode, action=:none)
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:tool_mode]
+    request.address = AWUBootWorkMode[mode]
+    request.len = AWActions[action]
+
+    data = send_request(request.to_binary_s)
+    raise "Failed to send request (response len: #{data.bytesize} !=" <<
+    " 13)" if data.bytesize != 13
+
+    data = recv_request(8)
+    if data == nil || data.bytesize != 8
+      raise "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    raise "Command failed (Status #{status.state})" if status.state > 0
+  end
+
 end
 
 $options = {}
@@ -678,12 +708,13 @@ begin
          $options[:action] = :transmite
          $options[:file] = f
       end
+      opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
 
       opts.separator "\nOptions:"
-      opts.on("-d", "--device number", Integer,
+      opts.on("-d", "--device num", Integer,
       "Select device number (default 0)") { |id| $options[:device] = id }
 
-      opts.on("-a", "--address address", ComputerInteger, "Address (used for" <<
+      opts.on("-a", "--address adr", ComputerInteger, "Address (used for" <<
       " --" << AddressCmds.join(", --") << ")") do |a|
         $options[:address] = a[0..1] == "0x" ? Integer(a, 16) : a.to_i
       end
@@ -691,11 +722,11 @@ begin
       "for --" << LengthCmds.join(", --") << ")") do |l|
         $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
       end
-      opts.on("-m", "--mode mode", Modes, "Set command context to one of " <<
-      "modes (" << Modes.join(", ") << ")") do |m|
+      opts.on("-c", "--context ctx", Modes, "Set command context to one of " <<
+      "mode (" << Modes.join(", ") << ")") do |m|
         $options[:mode] = m.to_sym
       end
-      opts.on("-i", "--index index", FESIndex.keys, "Set media index " <<
+      opts.on("-i", "--index idx", FESIndex.keys, "Set media index " <<
       "(" << FESIndex.keys.join(", ") << ")") do |i|
         $options[:index] = i.to_sym
       end
@@ -716,18 +747,18 @@ begin
     puts "Invalid tag. Please specify one or more of " << AWTags.keys.join(", ")
     exit
   end
-  raise OptionParser::MissingArgument if($options[:direction] == :read &&
+  raise OptionParser::MissingArgument, "You must specify --address and --length!" if($options[:direction] == :read &&
     ($options[:length] == nil || $options[:address] == nil) &&
     [:read, :transmite].include?($options[:action]))
-  raise OptionParser::MissingArgument if($options[:direction] == :write &&
+  raise OptionParser::MissingArgument, "You must specify --address!" if($options[:direction] == :write &&
      $options[:address] == nil && [:write, :transmite, :run].
      include?($options[:action]))
 #  raise OptionParser::MissingArgument if($options[:action] == :read &&
 #    ($options[:length] == nil || $options[:address] == nil))
 #  raise OptionParser::MissingArgument if(($options[:action] == :write ||
 #    $options[:action] == :run) && $options[:address] == nil)
-rescue OptionParser::MissingArgument
-  puts "Missing argument. Type FELix.rb --help to see usage"
+rescue OptionParser::MissingArgument => e
+  puts "Missing argument (#{e}). Type FELix.rb --help to see usage"
   exit
 rescue OptionParser::InvalidArgument
   puts "Invalid argument. Type FELix.rb --help to see usage"
@@ -864,6 +895,15 @@ begin
     rescue => e
       puts "\t[FAIL]".red unless $options[:verbose]
       puts "Failed to transmite: #{e.message} at #{e.backtrace.join("\n")}"
+    end
+  when :reboot
+    begin
+      print "* Rebooting" unless $options[:verbose]
+      fel.set_tool_mode(:usb_tool_update, :none)
+      puts "\t[OK]".green unless $options[:verbose]
+    rescue => e
+      puts "\t[FAIL]".red unless $options[:verbose]
+      puts "Failed to reboot: #{e.message} at #{e.backtrace.join("\n")}"
     end
   else
     puts "No action specified"

@@ -136,17 +136,17 @@ end
 #   0x80, 0x84, 0x02, 0x30, 0x97, 0x32, 0x2A, 0x00, 0xA8, 0x4F, 0x03, 0x05,
 #   0xD8, 0x53, 0x63, 0x03, (0x00, 0x00, 0x00, 0x00)*
 #   };
-# @note default values are for A31s
+# @example how to encode port (on example: port:PH20<2><1><default><default>):
+#   ?    : 0x40000                  = 0x40000
+#   group: 0x80000 + 'H' - 'A'      = 0x80007   (H)
+#   pin:   0x100000 + (20 << 5)     = 0x100280  (20)
+#   func:  0x200000 + (2  << 10)    = 0x200800  (<2>)
+#   mul:   0x400000 + (1  << 14)    = 0x404000  (<1>)
+#   pull:  0x800000 + (?  << 16)    = 0         (<default>)
+#   data:  0x1000000 +(?  << 18)    = 0         (<default>)
+#   sum                             = 0x7C4A87
+# @note default values are for A31s (sun8iw1p2)
 class AWSystemParameters < BinData::Record
-  # how to encode port (on example: port:PH20<2><1><default><default>):
-  #  ?    : 0x40000                  = 0x40000
-  #  group: 0x80000 + 'H' - 'A'      = 0x80007   (H)
-  #  pin:   0x100000 + (20 << 5)     = 0x100280  (20)
-  #  func:  0x200000 + (2  << 10)    = 0x200800  (<2>)
-  #  mul:   0x400000 + (1  << 14)    = 0x404000  (<1>)
-  #  pull:  0x800000 + (?  << 16)    = 0         (<default>)
-  #  data:  0x1000000 +(?  << 18)    = 0         (<default>)
-  #  sum                             = 0x7C4A87
   array    :unknown, :type => :uint8, :initial_length => 24
   uint32le :uart_debug_tx, :initial_value => 0x7C4A87   # 0x18 [uart_para]
   uint32le :uart_debug_port, :inital_value => 0         # 0x1C [uart_para]

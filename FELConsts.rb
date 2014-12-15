@@ -54,8 +54,8 @@ FESCmd = {
   :verify_status                   => 0x20D, # Read len 12 => AWFESVerifyStatusResponse
   :flash_size_probe                => 0x20E, # Read len 4 => sunxi_sprite_size()
   :tool_mode                       => 0x20F, # can be used to reboot device
-                                             #  :toolmode is one of AWUBootWorkMode
-                                             #  :nextmode is desired mode (0 => SUNXI_UPDATE_NEXT_ACTION_REBOOT)
+                                             # :toolmode is one of AWUBootWorkMode
+                                             # :nextmode is desired mode
   :memset                          => 0x210, # can be used to fill memory with desired value (byte)
   :pmu                             => 0x211,
   :unseqmem_read                   => 0x212,
@@ -73,12 +73,24 @@ AWDeviceMode = {
 
 # U-boot mode (uboot_spare_head.boot_data.work_mode,0xE0 offset)
 AWUBootWorkMode = {
-  :boot                            => 0x0,
-  :usb_product                     => 0x10,
-  :card_product                    => 0x11,
-  :usb_debug	                     => 0x12,
-  :usb_update	                     => 0x20,
-  :outer_update	                   => 0x21
+  :boot                            => 0x0,  # normal start
+  :usb_tool_product                => 0x4,  # if :action => :none, then reboots device
+  :usb_tool_update                 => 0x8,
+  :usb_product                     => 0x10, # FES mode
+  :card_product                    => 0x11, # SD-card flash
+  :usb_debug                       => 0x12, # FES mode with debug
+  :usb_update                      => 0x20, # USB upgrade?
+  :outer_update                    => 0x21  # external disk upgrade
+}
+
+# Used as argument for FES_SET_TOOL_MODE. Names are self-explaining
+AWActions = {
+  :none                             => 0x0,
+  :normal		                       	=> 0x1,
+  :reboot		                       	=> 0x2,
+  :shutdown	                      	=> 0x3,
+  :reupdate	                      	=> 0x4,
+  :boot		                         	=> 0x5
 }
 
 # Flag for FESCmd[:transmite]
