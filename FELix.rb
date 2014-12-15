@@ -130,37 +130,33 @@ require_relative 'FELHelpers'
 # 3. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
 # These 3 steps above seems optional
 # 4. FES_TRANSMITE: (write flag, index:dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
-# 5. FES_DOWNLOAD: (16 bytes @ 0x0, but no data written after), flags erase|finish (0x17f04)
-#                  It took me LONG time, but I know why it sends 16 bytes. Actually
-#                  the data (16 bytes) is written after, but it could be anything - it's not used at all.
-#                  They chose 16 bytes becuase thats length of (FEL_VERIFY_DEVICE
-#                  request => (see: next step), and FES_DOWNLOAD request can not be sent with 0 data
-# 6. FEL_VERIFY_DEVICE: Send to make FES_DOWNLOAD request valid. This request is not executed at all
-# 7. FES_VERIFY_STATUS: flags erase (0x7f04). Return  flags => 0x6a617603, crc => 0
-# 8. FES_DOWNLOAD: write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size
+# 5. FES_DOWNLOAD: Send 16 bytes @ 0x0, flags erase|finish (0x17f04) ((DWORD)0x01, rest 0x00)
+#                  => Force sys_config.fex's erase_flag to 1
+# 6. FES_VERIFY_STATUS: flags erase (0x7f04). Return  flags => 0x6a617603, crc => 0
+# 7. FES_DOWNLOAD: write sunxi_mbr.fex, whole file at once => 16384 * 4 copies bytes size
 #                  context: mbr|finish (0x17f01), inits NAND
-# 9. FES_VERIFY_STATUS: flags mbr (0x7f01). Return flags => 0x6a617603, crc => 0
+# 8. FES_VERIFY_STATUS: flags mbr (0x7f01). Return flags => 0x6a617603, crc => 0
 # *** Flashing process starts
-# 10.FES_FLASH_SET_ON: enable nand (actually it may intialize MMC I suppose),
+# 9. FES_FLASH_SET_ON: enable nand (actually it may intialize MMC I suppose),
 #                      not needed if we've done step 8
-# 11.FES_DOWNLOAD: write bootloader.fex (nanda) at 0x8000 in 65536 chunks, but address offset
+# 10.FES_DOWNLOAD: write bootloader.fex (nanda) at 0x8000 in 65536 chunks, but address offset
 #                  must be divided by 512 => 65536/512 = 128. Thus (0x8000, 0x8080, 0x8100, etc)
 #                  at last chunk :finish context must be set
-# 12.FES_VERIFY_VALUE: I'm pretty sure args are address and data size @todo
+# 11.FES_VERIFY_VALUE: I'm pretty sure args are address and data size @todo
 #                      Produces same as FES_VERIFY_STATUS => AWFESVerifyStatusResponse
 #                      and CRC must be the same value as stored in Vbootloader.fex
-# 13.FES_DOWNLOAD/FES_VERIFY_VALUE: write env.fex (nandb) at 0x10000 => because
+# 12.FES_DOWNLOAD/FES_VERIFY_VALUE: write env.fex (nandb) at 0x10000 => because
 #                                   previous partiton size was 0x8000 => see sys_partition.fex).
-# 14.FES_DOWNLOAD/FES_VERIFY_VALUE: write boot.fex (nandc) at 0x18000
-# 15.FES_DOWNLOAD/FES_VERIFY_VALUE: write system.fex (nandd) at 0x20000
-# 16.FES_DOWNLOAD/FES_VERIFY_VALUE: write recovery.fex (nandg) at 0x5B8000
-# 17.FES_FLASH_SET_OFF <= disable nand
-# 18.FES_DOWNLOAD: Send u-boot.fex at 0x00, context is uboot (0x7f02)
-# 19.FES_VERIFY_STATUS: flags uboot (0x7f04). Return flags => 0x6a617603, crc => 0
-# 20.FES_QUERY_STORAGE: => returns 0 [4 bytes] @todo
-# 21.FES_DOWNLOAD: Send boot0_nand.fex at 0x00, context is boot0 (0x7f03)
-# 22.FES_VERIFY_STATUS: flags boot0 (0x7f03). Return flags => 0x6a617603, crc => 0
-# 23.FES_SET_TOOL_MODE: Reboot device (8, 0) @todo
+# 13.FES_DOWNLOAD/FES_VERIFY_VALUE: write boot.fex (nandc) at 0x18000
+# 14.FES_DOWNLOAD/FES_VERIFY_VALUE: write system.fex (nandd) at 0x20000
+# 15.FES_DOWNLOAD/FES_VERIFY_VALUE: write recovery.fex (nandg) at 0x5B8000
+# 16.FES_FLASH_SET_OFF <= disable nand
+# 17.FES_DOWNLOAD: Send u-boot.fex at 0x00, context is uboot (0x7f02)
+# 18.FES_VERIFY_STATUS: flags uboot (0x7f04). Return flags => 0x6a617603, crc => 0
+# 19.FES_QUERY_STORAGE: => returns 0 [4 bytes] @todo
+# 20.FES_DOWNLOAD: Send boot0_nand.fex at 0x00, context is boot0 (0x7f03)
+# 21.FES_VERIFY_STATUS: flags boot0 (0x7f03). Return flags => 0x6a617603, crc => 0
+# 22.FES_SET_TOOL_MODE: Reboot device (8, 0) @todo
 # *** Weee! We've finished!
 #
 # Partition layout (can be easily recreated using sys_partition.fex or sunxi_mbr.fex)
@@ -433,35 +429,16 @@ class FELix
 
   # Erase NAND flash
   # @param mbr [String] new mbr. Must have 65536 bytes of length
+  # @param format [TrueClass, FalseClass] erase data
   # @return [AWFESVerifyStatusResponse] result of sunxi_sprite_download_mbr (crc:-1 if fail)
   # @raise [String] error name
   # @note Use only in :fes mode
-  def format_device(mbr)
+  def write_mbr(mbr, format=false)
     raise "No MBR provided" unless mbr
     mbr = File.read(mbr)
     raise "MBR is too small" unless mbr.bytesize == 65536
-    # 1. Force platform->erase_flag
-    request = AWFELMessage.new
-    request.address = 0
-    request.len = 1
-    request.cmd = FESCmd[:download]
-    request.flags = AWTags[:erase] | AWTags[:finish]
-    data = send_request(request.to_binary_s)
-    if data == nil
-      raise "Failed to send request (data: #{data})"
-    end
-
-    data = send_request("?") # dummy data to make request valid (see routines)
-    raise "Failed to send request (data: #{data})" if data == nil
-
-    data = recv_request(8)
-    if data == nil || data.bytesize != 8
-      raise "Failed to receive device status (data: #{data})"
-    end
-
-    status = AWFELStatusResponse.read(data)
-    raise "Command failed (Status #{status.state})" if status.state > 0
-
+    # 1. Force platform->erase_flag => 1 or 0 if we dont wanna erase
+    write(0, format ? "\1\0\0\0" : "\0\0\0\0", [:erase, :finish], :fes)
     # 2. Verify status (actually this is unecessary step [last_err is not set at all])
     # verify_status(:erase)
     # 3. Write MBR
@@ -688,8 +665,12 @@ begin
       end
 
       opts.separator "* Only in FES mode".light_blue.underline
-      opts.on("--format mbr", "Erase NAND Flash and writes new MBR") do |f|
+      opts.on("--format mbr", "Erase NAND Flash and write new MBR") do |f|
         $options[:action] = :format
+        $options[:file] = f
+      end
+      opts.on("--mbr mbr", "Write new MBR") do |f|
+        $options[:action] = :mbr
         $options[:file] = f
       end
       opts.on("--nand how", [:on, :off], "Enable/disable NAND driver. Use 'on'" <<
@@ -805,12 +786,22 @@ begin
   when :format
     begin
       print "* Formating NAND (it may take ~60 seconds)" unless $options[:verbose]
-      status = fel.format_device($options[:file])
-      raise "Flash init failed (#{status.crc})" if status.crc != 0
+      status = fel.write_mbr($options[:file], true)
+      raise "Format failed (#{status.crc})" if status.crc != 0
       puts "\t[OK]".green unless $options[:verbose]
     rescue => e
       puts "\t[FAIL]".red unless $options[:verbose]
       puts "Failed to format device (#{e.message}) at #{e.backtrace.join("\n")}"
+    end
+  when :mbr
+    begin
+      print "* Writing MBR" unless $options[:verbose]
+      status = fel.write_mbr($options[:file], false)
+      raise "Write failed (#{status.crc})" if status.crc != 0
+      puts "\t[OK]".green unless $options[:verbose]
+    rescue => e
+      puts "\t[FAIL]".red unless $options[:verbose]
+      puts "Failed to write device (#{e.message}) at #{e.backtrace.join("\n")}"
     end
   when :storage
     begin

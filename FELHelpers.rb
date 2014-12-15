@@ -125,8 +125,8 @@ class FELHelpers
       elsif packet.length == 12 && dir == :read
         p = AWFESVerifyStatusResponse.read(packet)
         puts "<-- (% 5d) " % packet.bytesize << "AWFESVerifyStatusResponse ".
-         light_blue << "flags: 0x%x, crc: 0x%x, last_err %d" % [p.flags,
-         p.fes_crc, p.last_error]
+         light_blue << "flags: 0x%x, crc: 0x%x, last_err/crc %d" % [p.flags,
+         p.fes_crc, p.crc]
       else
         return :unk if dir == :unk
         print (dir == :write ? "--> " : "<-- ") << "(% 5d) " % packet.bytesize
