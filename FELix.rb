@@ -217,19 +217,11 @@ class FELix
     r2 = @handle.bulk_transfer(:dataOut => data, :endpoint => @usb_out)
     puts "Sent ".green << r2.to_s.yellow << " bytes".green if $options[:verbose]
   # 3. Get AWUSBResponse
-  #  begin
-  #sleep 60
-      r3 = @handle.interrupt_transfer(:dataIn => 13, :endpoint => @usb_in)
-      FELHelpers.debug_packet(r3, :read) if $options[:verbose]
-      puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
-      r3
-  #  rescue => e
-  #    p e
-      # Some request takes a lot of time (i.e. NAND format). Try to wait a second and check again.
-  #    timeout-=1
-  #    sleep 1
-  #    retry if timeout>0
-  #  end
+  # Some request takes a lot of time (i.e. NAND format). Try to wait 60 seconds for response.
+    r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in, :timeout=>(60 * 1000))
+    FELHelpers.debug_packet(r3, :read) if $options[:verbose]
+    puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
+    r3
   rescue => e
     raise e, "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
     " (" << e.message << ")"
