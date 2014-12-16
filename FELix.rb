@@ -668,6 +668,11 @@ begin
         AWMBR.read(mbr).inspect
         exit
       end
+      opts.on("--image-info path", String, "Show LiveSuit's image info") do |f|
+        img = File.read(f, 1024) # read header
+        p AWImageHeader.read(img)
+        exit
+      end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         dl = File.read(f)
         p AWDownloadInfo.read(dl)

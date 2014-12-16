@@ -349,3 +349,49 @@ class AWDownloadInfo < BinData::Record
   end
 
 end
+
+# Livesuit's image item (1024 bytes)
+class AWImageItem < BinData::Record
+  endian  :little
+  uint32  :version, :initial_value => 0x100
+  uint32  :item_size
+  string  :main_type, :length => 8, :initial_value => "COMMON"
+  string  :sub_type, :length => 16
+  uint32  :attributes
+  string  :path, :length => 256
+  uint32  :data_len_low
+  uint32  :data_len_hi
+  uint32  :file_len_low
+  uint32  :file_len_hi
+  uint32  :off_len_low
+  uint32  :off_len_hi
+  array   :encrypt_id, :type => :uint8, :initial_length => 64, :value => 0
+  uint32  :crc
+  string  :reserved, :length => 640, :trim_padding => true
+end
+
+# Livesuit image file header (1024 bytes)
+class AWImageHeader < BinData::Record
+  endian :little
+  string  :magic, :length => 8, :asserted_value => "IMAGEWTY"
+  uint32  :image_version, :initial_value => 0x300
+  uint32  :header_size
+  uint32  :attr
+  uint32  :image_ver
+  uint32  :len_low
+  uint32  :len_hi
+  uint32  :align
+  uint32  :pid
+  uint32  :vid
+  uint32  :hw
+  uint32  :fw
+  uint32  :image_attr
+  uint32  :item_size
+  uint32  :item_count
+  uint32  :item_offset
+  uint32  :item_attr
+  uint32  :append_size # additional data length
+  uint32  :append_offset_lo
+  uint32  :append_offset_hi
+  string  :reserved, :length => 940, :trim_padding => true
+end
