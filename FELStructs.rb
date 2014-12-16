@@ -218,7 +218,7 @@ end
 
 #Legacy mbr (softw311), record size: 1024
 class SunxiLegacyMBR < BinData::Record
-  uint8    :copy
+  uint8    :copy, :initial_value => 4
   uint8    :mbr_index
   uint16le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
   array    :part, :type => :sunxi_legacy_partition, :initial_length => 15
@@ -227,7 +227,8 @@ end
 
 # Unified SUNXI mbr
 class AWNandMBR < BinData::Record
-  uint32le  :crc
+  uint32le  :crc, :value => lambda { Crc32.calculate(version.to_binary_s <<
+                            magic << mbr.to_binary_s, 12+mbr.num_bytes,0) }
   uint32le  :version, :initial_value => 0x200
   string    :magic, :length => 8, :initial_value => "softw411",
                     :assert => lambda { ["softw311", "softw411"].include? magic }

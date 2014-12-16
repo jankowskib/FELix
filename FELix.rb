@@ -20,6 +20,7 @@ require 'colorize'
 require 'optparse'
 require 'libusb'
 require 'bindata'
+require 'crc32'
 
 require_relative 'FELStructs'
 require_relative 'FELHelpers'
