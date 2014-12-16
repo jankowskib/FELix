@@ -178,29 +178,61 @@ class AWSystemParameters < BinData::Record
 end
 
 # Size 128
-class Partition < BinData::Record
+class SunxiPartition < BinData::Record
   endian :little
-  uint32 :address_high
+  uint32 :address_high, :initial_value => 0
   uint32 :address_low
-  uint32 :lenhi
+  uint32 :lenhi, :initial_value => 0
   uint32 :lenlo
-  string :classname, :length => 16
-  string :name, :length => 16
-  uint32 :user_type
-  uint32 :keydata
-  uint32 :ro
+  string :classname, :length => 16, :trim_padding => true, :initial_value => "DISK"
+  string :name, :length => 16, :trim_padding => true
+  uint32 :user_type, :initial_value => 0x8000
+  uint32 :keydata, :initial_value => 0
+  uint32 :ro, :initial_value => 0
   array  :reserved, :type => :uint8, :initial_length => 68
 end
 
-# Structure for SUNXI boot, record size: 16384
-class AWNandMBR < BinData::Record
-  uint32le :crc
-  uint32le :version
-  string   :magic, :length => 8, :initial_value => "softw311" # or softw411
-  uint32le :copy
-  uint32le :part_index
-  uint32le :mbr_count
-  uint32le :stamp
-  array    :part, :type => :partition, :initial_length => 120
+# Size 64
+class SunxiLegacyPartition < BinData::Record
+  endian :little
+  uint32 :address_high, :initial_value => 0
+  uint32 :address_low
+  uint32 :lenhi, :initial_value => 0
+  uint32 :lenlo
+  string :classname, :length => 12, :trim_padding => true, :initial_value => "DISK"
+  string :name, :length => 12, :trim_padding => true
+  uint32 :user_type, :initial_value => 0x8000
+  uint32 :ro, :initial_value => 0
+  array  :reserved, :type => :uint8, :initial_length => 16
+end
+
+#Newer mbr (softw411), record size: 16384
+class SunxiMBR < BinData::Record
+  uint32le :copy, :initial_value => 4
+  uint32le :mbr_index
+  uint32le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
+  uint32le :stamp, :initial_value => 0
+  array    :part, :type => :sunxi_partition, :initial_length => 120
   array    :reserved, :type => :uint8, :initial_length => 992
+end
+
+#Legacy mbr (softw311), record size: 1024
+class SunxiLegacyMBR < BinData::Record
+  uint8    :copy
+  uint8    :mbr_index
+  uint16le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
+  array    :part, :type => :sunxi_legacy_partition, :initial_length => 15
+  array    :reserved, :type => :uint8, :initial_length => 44
+end
+
+# Unified SUNXI mbr
+class AWNandMBR < BinData::Record
+  uint32le  :crc
+  uint32le  :version, :initial_value => 0x200
+  string    :magic, :length => 8, :initial_value => "softw411",
+                    :assert => lambda { ["softw311", "softw411"].include? magic }
+  choice :mbr, :selection => :magic do
+    sunxi_mbr "softw411"
+    sunxi_legacy_mbr "softw311"
+  end
 end

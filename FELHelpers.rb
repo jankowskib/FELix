@@ -220,22 +220,29 @@ class FELHelpers
     # @param file [String] file name
     def debug_mbr(file)
       mbr = File.read(file)
-      raise "MBR is too small" unless mbr.bytesize == 65536
-      mbr = AWNandMBR.read(mbr)
-      mbr.each_pair do |k, v|
-        next if k == :reserved
-        print "%-40s" % k.to_s.yellow unless k == :part
+      data = AWNandMBR.read(mbr)
+      data.each_pair do |k, v|
+        print "%-40s" % k.to_s.yellow unless k == :mbr
         case k
-        when :crc, :stamp then puts "0x%08x" % v
-        when :part
-          puts "Partitions:".light_blue
-          c = 'a'
-          v.each do |p|
-            break if p.name == "\0"*16
-            print "%-40s" % p.name.strip.yellow
-            puts "(nand%s) @ 0x%08x [%d]" % [c,
-              p.address_low, p.lenlo]
-            c.next!
+        when :crc, :version then puts "0x%08x" % v
+        when :mbr
+          v.each_pair do |i, j|
+            next if i == :reserved
+            print "%-40s" % i.to_s.yellow unless i == :part
+            case i
+            when :part
+              puts "Partitions:".light_blue
+              c = 'a'
+              j.each do |p|
+                break if p.name.empty?
+                print "%-40s" % p.name.yellow
+                puts "(nand%s) @ 0x%08x [% 5d MB]" % [c,
+                  p.address_low, p.lenlo/2048 ]
+                c.next!
+              end
+            else
+              puts "#{j}"
+            end
           end
         else
           puts "#{v}"

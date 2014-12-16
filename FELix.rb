@@ -68,8 +68,8 @@ require_relative 'FELHelpers'
 #      => 0x40600000 - 0x40700000: BOOTX_BIN_ADDR (1048576 bytes)
 #      => 0x40800000 - 0x40900000: FED_TEMP_BUFFER_ADDR (1048576 bytes)
 #      => 0x40900000 - 0x40901000: FED_PARA_1_ADDR (4096 bytes)
-#      => 0x40901000 - 0x40902000: FED_PARA_1_ADDR (4096 bytes)
-#      => 0x40902000 - 0x40903000: FED_PARA_1_ADDR (4096 bytes)
+#      => 0x40901000 - 0x40902000: FED_PARA_2_ADDR (4096 bytes)
+#      => 0x40902000 - 0x40903000: FED_PARA_3_ADDR (4096 bytes)
 #      (...)
 #      => 0x4A000000: u-boot.fex
 #      => 0x4D415244: SYS_PARA_LOG (second instance?)
@@ -152,7 +152,7 @@ require_relative 'FELHelpers'
 #    19.FES_QUERY_STORAGE: => returns 0 [4 bytes] @todo
 #    20.FES_DOWNLOAD: Send boot0_nand.fex at 0x00, context is boot0 (0x7f03)
 #    21.FES_VERIFY_STATUS: flags boot0 (0x7f03). Return flags => 0x6a617603, crc => 0
-#    22.FES_SET_TOOL_MODE: Reboot device (8, 0) @todo
+#    22.FES_SET_TOOL_MODE: Reboot device (8, 0)
 #    *** Weee! We've finished!
 # @example Partition layout (can be easily recreated using sys_partition.fex or sunxi_mbr.fex)
 #    => 1MB = 2048 in NAND addressing / 1 sector = 512 bytes
