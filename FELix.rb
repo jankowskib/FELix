@@ -665,7 +665,7 @@ begin
       end
       opts.on("--decode-mbr path", String, "Decode sunxi-mbr.fex") do |f|
         mbr = File.read(f)
-        AWNandMBR.read(mbr).inspect
+        AWMBR.read(mbr).inspect
         exit
       end
       opts.on("--version", "Show version") do

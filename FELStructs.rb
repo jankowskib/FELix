@@ -207,7 +207,7 @@ class SunxiLegacyPartition < BinData::Record
 end
 
 #Newer mbr (softw411), record size: 16384
-class SunxiMBR < BinData::Record
+class AWSunxiMBR < BinData::Record
   uint32le :copy, :initial_value => 4
   uint32le :mbr_index
   uint32le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
@@ -217,7 +217,7 @@ class SunxiMBR < BinData::Record
 end
 
 #Legacy mbr (softw311), record size: 1024
-class SunxiLegacyMBR < BinData::Record
+class AWSunxiLegacyMBR < BinData::Record
   uint8    :copy, :initial_value => 4
   uint8    :mbr_index
   uint16le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
@@ -226,15 +226,15 @@ class SunxiLegacyMBR < BinData::Record
 end
 
 # Unified SUNXI mbr
-class AWNandMBR < BinData::Record
+class AWMBR < BinData::Record
   uint32le  :crc, :value => lambda { Crc32.calculate(version.to_binary_s <<
                             magic << mbr.to_binary_s, 12+mbr.num_bytes,0) }
   uint32le  :version, :initial_value => 0x200
   string    :magic, :length => 8, :initial_value => "softw411",
                     :assert => lambda { ["softw311", "softw411"].include? magic }
   choice :mbr, :selection => :magic do
-    sunxi_mbr "softw411"
-    sunxi_legacy_mbr "softw311"
+    aw_sunxi_mbr "softw411"
+    aw_sunxi_legacy_mbr "softw311"
   end
 
   # Decode sunxi_mbr.fex
