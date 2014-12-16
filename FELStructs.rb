@@ -355,10 +355,10 @@ class AWImageItem < BinData::Record
   endian  :little
   uint32  :version, :initial_value => 0x100
   uint32  :item_size
-  string  :main_type, :length => 8, :initial_value => "COMMON"
-  string  :sub_type, :length => 16
+  string  :main_type, :length => 8, :initial_value => "COMMON", :pad_byte => ' '
+  string  :sub_type, :length => 16, :pad_byte => '0'
   uint32  :attributes
-  string  :path, :length => 256
+  string  :path, :length => 256, :trim_padding => true
   uint32  :data_len_low
   uint32  :data_len_hi
   uint32  :file_len_low
@@ -368,18 +368,23 @@ class AWImageItem < BinData::Record
   array   :encrypt_id, :type => :uint8, :initial_length => 64, :value => 0
   uint32  :crc
   string  :reserved, :length => 640, :trim_padding => true
+  hide    :reserved
+
+  # Useful to see item data
+  def inspect
+    "%-40s @ 0x%08x [%d kB] => %s" % [self.path.yellow, off_len_low, data_len_low>>10, main_type]
+  end
+
 end
 
-# Livesuit image file header (1024 bytes)
-class AWImageHeader < BinData::Record
+# Livesuit image file header (version 0x100)
+# @todo check that
+class AWImageHeaderV1 < BinData::Record
   endian :little
-  string  :magic, :length => 8, :asserted_value => "IMAGEWTY"
-  uint32  :image_version, :initial_value => 0x300
-  uint32  :header_size
-  uint32  :attr
-  uint32  :image_ver
+  uint32  :header_size, :initial_value => 0x50     # size of header-reserved
+  uint32  :attributes
+  uint32  :image_version
   uint32  :len_low
-  uint32  :len_hi
   uint32  :align
   uint32  :pid
   uint32  :vid
@@ -390,8 +395,68 @@ class AWImageHeader < BinData::Record
   uint32  :item_count
   uint32  :item_offset
   uint32  :item_attr
-  uint32  :append_size # additional data length
+  uint32  :append_size      # additional data length
   uint32  :append_offset_lo
   uint32  :append_offset_hi
-  string  :reserved, :length => 940, :trim_padding => true
+  string  :reserved, :length => 944, :trim_padding => true # need to confirm that
+  hide    :reserved
+end
+
+# Livesuit image file header (version 0x300), (1024 bytes)
+class AWImageHeaderV3 < BinData::Record
+  endian :little
+  uint32  :header_size, :initial_value => 0x60       # size of header-reserved
+  uint32  :attributes, :initial_value => 0x4D00000   # disable compression
+  uint32  :image_version, :initial_value => 0x100234
+  uint32  :len_low                                   # file size
+  uint32  :len_hi, :initial_value => 0
+  uint32  :align, :initial_value => 1024
+  uint32  :pid, :initial_value => 0x1234
+  uint32  :vid, :initial_value => 0x8743
+  uint32  :hw, :initial_value => 256
+  uint32  :fw, :initial_value => 256
+  uint32  :image_attr
+  uint32  :item_size, :initial_value => 1024         # size of AWImageItem
+  uint32  :item_count                                # number of AWImageItem embedded in image
+  uint32  :item_offset, :initial_value => 1024       # item table offset (header is 1024)
+  uint32  :item_attr
+  uint32  :append_size                               # additional data length
+  uint32  :append_offset_lo
+  uint32  :append_offset_hi
+  uint32  :unk1
+  uint32  :unk2
+  uint32  :unk3
+  string  :reserved, :length => 928, :trim_padding => true
+  hide    :reserved
+end
+
+# Unified Livesuit image structure
+class AWImage < BinData::Record
+  endian :little
+  string  :magic, :length => 8, :asserted_value => "IMAGEWTY"
+  uint32  :image_format, :initial_value => 0x300
+  choice  :header, :selection => :image_format do
+    aw_image_header_v1 0x100
+    aw_image_header_v3 0x300
+  end
+  array :item, :type => :aw_image_item, :initial_length => lambda { header.item_count }
+
+  # Useful to see image data
+  def inspect
+    self.each_pair do |k ,v|
+      print "%-40s" % k.to_s.yellow unless [:header, :item, :magic].include? k
+      case k
+      when :image_format then puts "0x%03x" % v
+      when :header
+        v.each_pair do |i, j|
+          puts "%-40s%s" % [i.to_s.yellow, j] if i == :item_count
+          puts "%-40s%d MB" % [i.to_s.yellow, j/1024/1024] if i == :len_low
+        end
+      when :item
+        puts "Items".light_blue
+        v.each { |it| puts it.inspect }
+      end
+    end
+  end
+
 end

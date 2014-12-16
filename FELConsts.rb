@@ -138,3 +138,42 @@ FESIndex = {
   :card                            => 0x3,
   :unknown                         => 0x20
 }
+
+#Livesuit image attributes
+AWImageAttr = {
+  :res                            => 0x800,
+  :length                         => 0x80000,
+  :encode                         => 0x4000000,
+  :compress                       => 0x80000000
+}
+
+#Live suit item types
+AWItemType = {
+  :common                         => "COMMON",
+  :info                           => "INFO",
+  :bootrom                        => "BOOTROM",
+  :fes                            => "FES",
+  :fet                            => "FET",
+  :fed                            => "FED",
+  :fex                            => "FEX",
+  :boot0                          => "BOOT0",
+  :boot1                          => "BOOT1",
+  :rootfsfat12                    => "RFSFAT12",
+  :rootfsfat16                    => "RFSFAT16",
+  :rootfsfat32                    => "FFSFAT32",
+  :userfsfat12                    => "UFSFAT12",
+  :userfsfat16                    => "UFSFAT16",
+  :userfsfat32                    => "UFSFAT32",
+  :phoenix_script                 => "PXSCRIPT",
+  :phoenix_tools                  => "PXTOOLS",
+  :audio_dsp                      => "AUDIODSP",
+  :video_dsp                      => "VIDEODSP",
+  :font                           => "FONT",
+  :flash_drv                      => "FLASHDRV",
+  :os_core                        => "OS_CORE",
+  :driver                         => "DRIVER",
+  :pic                            => "PICTURE",
+  :audio                          => "AUDIO",
+  :video                          => "VIDEO",
+  :application                    => "APP"
+}

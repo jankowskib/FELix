@@ -21,6 +21,7 @@ require 'optparse'
 require 'libusb'
 require 'bindata'
 require 'crc32'
+require 'crypt/rc6'
 
 require_relative 'FELStructs'
 require_relative 'FELHelpers'
@@ -669,13 +670,40 @@ begin
         exit
       end
       opts.on("--image-info path", String, "Show LiveSuit's image info") do |f|
-        img = File.read(f, 1024) # read header
-        p AWImageHeader.read(img)
-        exit
+        img = File.read(f, 43 * 1024) # read header
+        encrypted = false
+        begin
+          data = AWImage.read(img)
+          data.inspect
+          exit
+        rescue BinData::ValidityError => e # try to decode
+          rc6_head = Crypt::RC6.new("\0"* 31 << "i")
+          rc6_items = Crypt::RC6.new("\1"* 31 << "m")
+          #rc6_data = Crypt::RC6.new("\2"* 31 << "g")
+          i = 0
+          n = ""
+          while i<1024
+            n << rc6_head.decrypt_block(img.byteslice(i,16))
+            i+=16
+          end
+          while i<1024*43
+            n << rc6_items.decrypt_block(img.byteslice(i,16))
+            i+=16
+          end
+          img = n
+          unless encrypted
+            puts "Invalid data. Trying to decode"
+            encrypted = true
+            retry
+          else
+            puts "Invalid file type! (#{e.message})"
+            exit
+          end
+        end
       end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         dl = File.read(f)
-        p AWDownloadInfo.read(dl)
+        AWDownloadInfo.read(dl).inspect
         exit
       end
       opts.on("--version", "Show version") do
