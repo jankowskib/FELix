@@ -668,6 +668,11 @@ begin
         AWMBR.read(mbr).inspect
         exit
       end
+      opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
+        dl = File.read(f)
+        p AWDownloadInfo.read(dl)
+        exit
+      end
       opts.on("--version", "Show version") do
         puts FELIX_VERSION
         exit

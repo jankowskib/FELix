@@ -178,7 +178,7 @@ class AWSystemParameters < BinData::Record
 end
 
 # Size 128
-class SunxiPartition < BinData::Record
+class AWSunxiPartition < BinData::Record
   endian :little
   uint32 :address_high, :initial_value => 0
   uint32 :address_low
@@ -193,7 +193,7 @@ class SunxiPartition < BinData::Record
 end
 
 # Size 64
-class SunxiLegacyPartition < BinData::Record
+class AWSunxiLegacyPartition < BinData::Record
   endian :little
   uint32 :address_high, :initial_value => 0
   uint32 :address_low
@@ -212,7 +212,7 @@ class AWSunxiMBR < BinData::Record
   uint32le :mbr_index
   uint32le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
   uint32le :stamp, :initial_value => 0
-  array    :part, :type => :sunxi_partition, :initial_length => 120
+  array    :part, :type => :aw_sunxi_partition, :initial_length => 120
   array    :reserved, :type => :uint8, :initial_length => 992
 end
 
@@ -221,7 +221,7 @@ class AWSunxiLegacyMBR < BinData::Record
   uint8    :copy, :initial_value => 4
   uint8    :mbr_index
   uint16le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
-  array    :part, :type => :sunxi_legacy_partition, :initial_length => 15
+  array    :part, :type => :aw_sunxi_legacy_partition, :initial_length => 15
   array    :reserved, :type => :uint8, :initial_length => 44
 end
 
@@ -238,7 +238,7 @@ class AWMBR < BinData::Record
   end
 
   # Decode sunxi_mbr.fex
-
+  #
   # Produces following output
   # --------------------------
   #   *   bootloader (nanda) @ 0x8000    [16MB]
@@ -270,6 +270,80 @@ class AWMBR < BinData::Record
         end
       else
           puts "#{v}"
+      end
+    end
+  end
+
+end
+
+# Item structure nested in AWDownloadInfo (72 bytes)
+class AWDownloadItem < BinData::Record
+  endian :little
+  string :name, :length => 16, :trim_padding => true
+  uint32 :address_high, :initial_value => 0
+  uint32 :address_low
+  uint32 :lenhi, :initial_value => 0
+  uint32 :lenlo
+  string :filename, :length => 16, :trim_padding => true
+  string :virtual_filename, :length => 16, :trim_padding => true
+  uint32 :encrypt, :initial_value => 0
+  uint32 :verify, :initial_value => 0
+end
+
+# Legacy item structure nested in AWDownloadInfo (88 bytes)
+class AWLegacyDownloadItem < BinData::Record
+  endian :little
+  string :classname, :length => 12, :trim_padding => true, :initial_value => "DISK"
+  string :name, :length => 12, :trim_padding => true
+  uint32 :address_high, :initial_value => 0
+  uint32 :address_low
+  uint32 :lenhi, :initial_value => 0
+  uint32 :lenlo
+  string :part, :length => 12, :trim_padding => true
+  string :filename, :length => 16, :trim_padding => true
+  string :virtual_filename, :length => 16, :trim_padding => true
+  uint32 :encrypt, :initial_value => 0
+end
+
+# Unified Structure for dlinfo.fex (16 384 bytes)
+class AWDownloadInfo < BinData::Record
+  uint32le  :crc, :value => lambda {
+              feed = version.to_binary_s << magic << item_count.to_binary_s
+              feed << stamp.to_binary_s if magic == "softw411"
+              feed << item.to_binary_s
+              feed << reserved.to_binary_s if magic == "softw411"
+              Crc32.calculate(feed, self.num_bytes-4, 0)
+            }
+  uint32le  :version, :initial_value => 0x200
+  string    :magic, :length => 8, :initial_value => "softw411",
+            :assert => lambda { ["softw311", "softw411"].include? magic }
+  uint32le  :item_count, :value => lambda { item.select { |p| not p.name.empty? }.count }
+  array     :stamp, :type => :uint32le, :initial_length => 3, :onlyif =>
+            lambda { magic == "softw411" }
+  choice :item, :selection => :magic do
+    array "softw411", :type => :aw_download_item, :initial_length => 120
+    array "softw311", :type => :aw_legacy_download_item, :initial_length => 15
+  end
+  string    :reserved, :length => 7712, :onlyif => lambda { magic == "softw411"},
+            :trim_padding => true
+
+  # Decode dl_info.fex
+  def inspect
+    self.each_pair do |k ,v|
+      print "%-40s" % k.to_s.yellow unless k == :item
+      case k
+      when :item
+        v.each do |item|
+          next if item.name.empty?
+          item.each_pair do |i, j|
+            print "%-40s" % i.to_s.yellow
+            puts j
+          end
+        end
+      when :stamp then p v
+      when :crc, :version then puts "0x%08x" % v
+      else
+        puts v
       end
     end
   end
