@@ -236,4 +236,42 @@ class AWNandMBR < BinData::Record
     sunxi_mbr "softw411"
     sunxi_legacy_mbr "softw311"
   end
+
+  # Decode sunxi_mbr.fex
+
+  # Produces following output
+  # --------------------------
+  #   *   bootloader (nanda) @ 0x8000    [16MB]
+  #   *   env        (nandb) @ 0x10000   [16MB]
+  #   *   ...
+  def inspect
+    self.each_pair do |k, v|
+      print "%-40s" % k.to_s.yellow unless k == :mbr
+      case k
+      when :crc, :version then puts "0x%08x" % v
+      when :mbr
+        v.each_pair do |i, j|
+          next if i == :reserved
+          print "%-40s" % i.to_s.yellow unless i == :part
+          case i
+          when :part
+            puts "Partitions:".light_blue
+            c = 'a'
+            j.each do |p|
+              break if p.name.empty?
+              print "%-40s" % p.name.yellow
+              puts "(nand%s) @ 0x%08x [% 5d MB]" % [c,
+                p.address_low, p.lenlo/2048 ]
+                c.next!
+              end
+          else
+              puts "#{j}"
+          end
+        end
+      else
+          puts "#{v}"
+      end
+    end
+  end
+
 end
