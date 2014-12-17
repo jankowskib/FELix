@@ -171,6 +171,7 @@ require_relative 'FELHelpers'
 #     userdisk   (nandj) @ 0x708000  [4096MB - 3584MB => 512MB for 4GB NAND]
 # Main class for program. Contains methods to communicate with the device
 class FELix
+
   # Open device, and setup endpoints
   # @param device [LIBUSB::Device] a device
   def initialize(device)
@@ -423,26 +424,6 @@ class FELix
     raise "Command failed (Status #{status.state})" if fel_status.state > 0
   end
 
-  # Erase NAND flash
-  # @param mbr [String] new mbr. Must have 65536 bytes of length
-  # @param format [TrueClass, FalseClass] erase data
-  # @return [AWFESVerifyStatusResponse] result of sunxi_sprite_download_mbr (crc:-1 if fail)
-  # @raise [String] error name
-  # @note Use only in :fes mode
-  def write_mbr(mbr, format=false)
-    raise "No MBR provided" unless mbr
-    mbr = File.read(mbr)
-    raise "MBR is too small" unless mbr.bytesize == 65536
-    # 1. Force platform->erase_flag => 1 or 0 if we dont wanna erase
-    write(0, format ? "\1\0\0\0" : "\0\0\0\0", [:erase, :finish], :fes)
-    # 2. Verify status (actually this is unecessary step [last_err is not set at all])
-    # verify_status(:erase)
-    # 3. Write MBR
-    write(0, mbr, [:mbr, :finish], :fes)
-    # 4. Get result value of sunxi_sprite_verify_mbr
-    verify_status(:mbr)
-  end
-
   # Verify last operation status
   # @param tags [Hash, Symbol] operation tag (zero or more of AWTags)
   # @return [AWFESVerifyStatusResponse] device status
@@ -660,7 +641,6 @@ begin
         end
         exit
       end
-      opts.on
       opts.on("--decode path", String, "Decode packets from Wireshark dump") do |f|
         FELHelpers.debug_packets(f)
         exit
@@ -675,14 +655,13 @@ begin
           exit
         end
       end
-      opts.on("--image-info path", String, "Show LiveSuit's image info") do |f|
-        #begin
+      opts.on("--image-info image", String, "Show LiveSuit's image info") do |f|
+        begin
           FELHelpers.show_image_info(f)
-        #rescue Errno::ENOENT
-        #  puts "File not found!"
-        #ensure
-          exit
-        #end
+        rescue Errno::ENOENT
+          puts "File not found!"
+        end
+        exit
       end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
@@ -690,9 +669,8 @@ begin
           AWDownloadInfo.read(dl).inspect
         rescue Errno::ENOENT
           puts "File not found!"
-        ensure
-          exit
         end
+        exit
       end
       opts.on("--version", "Show version") do
         puts FELIX_VERSION
@@ -700,6 +678,10 @@ begin
       end
 
       opts.separator "* FEL/FES mode".light_blue.underline
+      opts.on("--flash image", String, "Flash Livesuit image") do |f|
+        $options[:action] = :read
+        $options[:file] = f
+      end
       opts.on("--info", "Get device info") { $options[:action] = :device_info }
       opts.on("--run", "Execute code. Use with --address") do
         $options[:action] = :run
@@ -715,7 +697,8 @@ begin
          $options[:file] = f
       end
       opts.on("--request id", ComputerInteger, "Experimental ".red << "Send " <<
-        "a standard request , then result response of #{FELIX_MAX_CHUNK} bytes") do |f|
+        "a standard request , then return a response of #{FELIX_MAX_CHUNK}" <<
+        " bytes") do |f|
          $options[:action] = :request
          $options[:request] = f[0..1] == "0x" ? Integer(f, 16) : f.to_i
       end
@@ -843,7 +826,8 @@ begin
   when :format
     begin
       print "* Formating NAND (it may take ~60 seconds)" unless $options[:verbose]
-      status = fel.write_mbr($options[:file], true)
+      mbr = File.read($options[:file])
+      status = fel.write_mbr(mbr, true)
       raise "Format failed (#{status.crc})" if status.crc != 0
       puts "\t[OK]".green unless $options[:verbose]
     rescue => e
@@ -853,7 +837,8 @@ begin
   when :mbr
     begin
       print "* Writing MBR" unless $options[:verbose]
-      status = fel.write_mbr($options[:file], false)
+      mbr = File.read($options[:file])
+      status = fel.write_mbr(mbr, false)
       raise "Write failed (#{status.crc})" if status.crc != 0
       puts "\t[OK]".green unless $options[:verbose]
     rescue => e
@@ -936,6 +921,16 @@ begin
     rescue => e
       puts "\t[FAIL]".red unless $options[:verbose]
       puts "Failed to reboot: #{e.message} at #{e.backtrace.join("\n")}"
+    end
+  when :flash
+    begin
+      print "* Checking image" unless $options[:verbose]
+      raise "Image not found!" unless $options[:file].exist?
+      puts "\t[OK]".green unless $options[:verbose]
+      flash($options[:file])
+    rescue => e
+      puts "\t[FAIL]".red unless $options[:verbose]
+      puts "Failed: #{e.message} at #{e.backtrace.join("\n")}"
     end
   else
     puts "No action specified"
