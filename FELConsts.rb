@@ -17,7 +17,10 @@
 FELIX_VERSION = "1.0 alfa"
 
 #Maximum data transfer length
-FELIX_MAX_CHUNK = 65536
+FELIX_MAX_CHUNK  = 65536
+FELIX_HEADER_KEY = "\0" * 31 << "i"
+FELIX_ITEM_KEY   = "\1" * 31 << "m"
+FELIX_DATA_KEY   = "\2" * 31 << "g"
 
 #AWUSBRequest type
 USBCmd = {

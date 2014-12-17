@@ -245,5 +245,53 @@ class FELHelpers
       end
     end
 
+    # Decrypt Livesuit image header using RC6 algorithm
+    # @param data [String] encrypted binary data
+    # @param key [String] encryption key
+    # @return decryped binary data
+    def decrypt(data, key)
+      rc6 = Crypt::RC6.new(key)
+      out = ""
+      data.scan(/.{16}/) do |m|
+        out << rc6.decrypt_block(m)
+      end
+      out
+    end
+
+    # Load Livesuit image header, and display info
+    # @param file [String] filename
+    def show_image_info(file)
+      encrypted = false
+      img = File.read(file, 1024) # Read header
+      if img.byteslice(0, 8) != "IMAGEWTY"
+        puts "Warning:".red << " Image is encrypted!".yellow
+        encrypted = true
+      end
+      print "Decrypting..." if encrypted
+      img = decrypt(img, FELIX_HEADER_KEY) if encrypted
+      raise "Unrecognized image format" if img.byteslice(0, 8) != "IMAGEWTY"
+      # @todo read header version
+      item_count = img[encrypted ? 0x38 : 0x3C, 4].unpack("V").first
+      raise "Firmware contains no items!" if item_count == 0
+
+      for i in 1..item_count
+        print "\rDecrypting...: #{i}/#{item_count}".green if encrypted
+        item = File.read(file, 1024, (i * 1024)) # Read item
+        item = decrypt(item, FELIX_ITEM_KEY) if encrypted
+        img << item
+      end
+      File.open("decrypted.fex", "w") { |f| f.write(img) }
+      puts if encrypted
+      puts AWImage.read(img).inspect
+    end
+
   end
 end
+
+# Twofish key: 00000005 00000004 00000009 0000000d 00000016
+#              00000023 00000039 0000005c 00000095 000000f1
+#              00000186 00000277 000003fd 00000674 00000a71
+#              000010e5 00001b56 00002c3b 00004791 000073cc
+#              0000bb5d 00012f29 0001ea86 000319af 00050435
+#              00081de4 000d2219 00153ffd 00226216 0037a213
+#              005a0429 0091a63c

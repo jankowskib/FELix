@@ -351,9 +351,31 @@ class AWDownloadInfo < BinData::Record
 end
 
 # Livesuit's image item (1024 bytes)
-class AWImageItem < BinData::Record
+class AWImageItemV1 < BinData::Record
   endian  :little
-  uint32  :version, :initial_value => 0x100
+  uint32  :version, :asserted_value => 0x100
+  uint32  :item_size
+  string  :main_type, :length => 8, :initial_value => "COMMON", :pad_byte => ' '
+  string  :sub_type, :length => 16, :pad_byte => '0'
+  uint32  :attributes
+  uint32  :data_len_low
+  uint32  :file_len_low
+  uint32  :off_len_low
+  string  :path, :length => 256, :trim_padding => true
+  string  :reserved, :length => 716, :trim_padding => true
+  hide    :reserved
+
+  # Useful to see item data
+  def inspect
+    "%-40s @ 0x%08x [%d kB] => %s" % [self.path.yellow, off_len_low, data_len_low>>10, main_type]
+  end
+
+end
+
+# Livesuit's image item (1024 bytes)
+class AWImageItemV3 < BinData::Record
+  endian  :little
+  uint32  :version, :asserted_value => 0x100
   uint32  :item_size
   string  :main_type, :length => 8, :initial_value => "COMMON", :pad_byte => ' '
   string  :sub_type, :length => 16, :pad_byte => '0'
@@ -381,7 +403,7 @@ end
 # @todo check that
 class AWImageHeaderV1 < BinData::Record
   endian :little
-  uint32  :header_size, :initial_value => 0x50     # size of header-reserved
+  uint32  :header_size, :asserted_value => 0x50     # size of header-reserved
   uint32  :attributes
   uint32  :image_version
   uint32  :len_low
@@ -405,7 +427,7 @@ end
 # Livesuit image file header (version 0x300), (1024 bytes)
 class AWImageHeaderV3 < BinData::Record
   endian :little
-  uint32  :header_size, :initial_value => 0x60       # size of header-reserved
+  uint32  :header_size, :asserted_value => 0x60       # size of header-reserved
   uint32  :attributes, :initial_value => 0x4D00000   # disable compression
   uint32  :image_version, :initial_value => 0x100234
   uint32  :len_low                                   # file size
@@ -439,24 +461,30 @@ class AWImage < BinData::Record
     aw_image_header_v1 0x100
     aw_image_header_v3 0x300
   end
-  array :item, :type => :aw_image_item, :initial_length => lambda { header.item_count }
+  choice  :item, :selection => :image_format do
+    array 0x100, :type => :aw_image_item_v1, :initial_length => lambda { header.item_count }
+    array 0x300, :type => :aw_image_item_v3, :initial_length => lambda { header.item_count }
+  end
 
   # Useful to see image data
   def inspect
+    out = ""
     self.each_pair do |k ,v|
-      print "%-40s" % k.to_s.yellow unless [:header, :item, :magic].include? k
+      out << "%-40s" % k.to_s.yellow unless [:header, :item, :magic].include? k
       case k
-      when :image_format then puts "0x%03x" % v
+      when :image_format then out << "0x%03x\n" % v
       when :header
         v.each_pair do |i, j|
-          puts "%-40s%s" % [i.to_s.yellow, j] if i == :item_count
-          puts "%-40s%d MB" % [i.to_s.yellow, j/1024/1024] if i == :len_low
+          out << "%-40s%s\n" % [i.to_s.yellow, j] if i == :item_count
+          out <<  "%-40s%d MB\n" % [i.to_s.yellow, j>>  20] if i == :len_low
+        #  out "res:" << reserved.inspect if i == :reserved
         end
       when :item
-        puts "Items".light_blue
-        v.each { |it| puts it.inspect }
+        out <<  "Items\n".light_blue
+        v.each { |it| out <<  it.inspect << "\n" }
       end
     end
+    out
   end
 
 end

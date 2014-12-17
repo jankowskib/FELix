@@ -660,51 +660,39 @@ begin
         end
         exit
       end
+      opts.on
       opts.on("--decode path", String, "Decode packets from Wireshark dump") do |f|
         FELHelpers.debug_packets(f)
         exit
       end
       opts.on("--decode-mbr path", String, "Decode sunxi-mbr.fex") do |f|
-        mbr = File.read(f)
-        AWMBR.read(mbr).inspect
-        exit
-      end
-      opts.on("--image-info path", String, "Show LiveSuit's image info") do |f|
-        img = File.read(f, 43 * 1024) # read header
-        encrypted = false
         begin
-          data = AWImage.read(img)
-          data.inspect
+          mbr = File.read(f)
+          AWMBR.read(mbr).inspect
+        rescue Errno::ENOENT
+          puts "File not found!"
+        ensure
           exit
-        rescue BinData::ValidityError => e # try to decode
-          rc6_head = Crypt::RC6.new("\0"* 31 << "i")
-          rc6_items = Crypt::RC6.new("\1"* 31 << "m")
-          #rc6_data = Crypt::RC6.new("\2"* 31 << "g")
-          i = 0
-          n = ""
-          while i<1024
-            n << rc6_head.decrypt_block(img.byteslice(i,16))
-            i+=16
-          end
-          while i<1024*43
-            n << rc6_items.decrypt_block(img.byteslice(i,16))
-            i+=16
-          end
-          img = n
-          unless encrypted
-            puts "Invalid data. Trying to decode"
-            encrypted = true
-            retry
-          else
-            puts "Invalid file type! (#{e.message})"
-            exit
-          end
         end
       end
+      opts.on("--image-info path", String, "Show LiveSuit's image info") do |f|
+        #begin
+          FELHelpers.show_image_info(f)
+        #rescue Errno::ENOENT
+        #  puts "File not found!"
+        #ensure
+          exit
+        #end
+      end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
-        dl = File.read(f)
-        AWDownloadInfo.read(dl).inspect
-        exit
+        begin
+          dl = File.read(f)
+          AWDownloadInfo.read(dl).inspect
+        rescue Errno::ENOENT
+          puts "File not found!"
+        ensure
+          exit
+        end
       end
       opts.on("--version", "Show version") do
         puts FELIX_VERSION
