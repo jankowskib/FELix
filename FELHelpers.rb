@@ -252,7 +252,7 @@ class FELHelpers
     def decrypt(data, key)
       rc6 = Crypt::RC6.new(key)
       out = ""
-      data.scan(/.{16}/) do |m|
+      data.scan(/.{16}/m) do |m|
         out << rc6.decrypt_block(m)
       end
       out
