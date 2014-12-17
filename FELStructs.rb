@@ -361,6 +361,7 @@ class AWImageItemV1 < BinData::Record
   uint32  :data_len_low
   uint32  :file_len_low
   uint32  :off_len_low
+  uint32  :unk
   string  :path, :length => 256, :trim_padding => true
   string  :reserved, :length => 716, :trim_padding => true
   hide    :reserved
