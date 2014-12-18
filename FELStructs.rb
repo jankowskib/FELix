@@ -491,4 +491,24 @@ class AWImage < BinData::Record
     out
   end
 
+  # Get item from LiveSuit image by file name
+  # @param filename [String] item name without path (i.e. system.fex, u-boot.fex, ...)
+  # @return [AWImageItemV1, AWImageItemV3, nil] first item if found, else nil
+  def item_by_file(filename)
+    item = self.item.select do |it|
+      it.path.match(/(?:.*\\)?(.+)$/)[1] == filename
+    end
+    item.first if item
+  end
+
+  # Get item from LiveSuit image by signature
+  # @param sub_type [String] signature (i.e. BOOTLOADER_FEX00,  BOOT_FEX00000000, ...)
+  # @return [AWImageItemV1, AWImageItemV3, nil] first item if found, else nil
+  def item_by_sign(signature)
+    item = self.item.select do |it|
+      it.sub_type == filename
+    end
+    item.first if item
+  end
+
 end
