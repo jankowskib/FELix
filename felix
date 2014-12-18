@@ -210,7 +210,7 @@ class FELix
 
   # Clean up on and finish program
   def bailout
-    print "* Finishing\t"
+    print "* Finishing".ljust(57) << "\t"
     @handle.release_interface(0) if @handle
     @handle.close if @handle
     puts "[OK]".green
@@ -932,20 +932,21 @@ begin
     end
     puts "[OK]".green unless $options[:verbose]
   when :reboot
-    print "* Rebooting\t" unless $options[:verbose]
+    print "* Rebooting".ljust(57) << "\t" unless $options[:verbose]
     fel.set_tool_mode(:usb_tool_update, :none)
     puts "[OK]".green unless $options[:verbose]
   when :flash
-    print "%-59s\t" % "* Checking device state" unless $options[:verbose]
+    print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
       puts "[OK]".green unless $options[:verbose] || percent
       if percent
-        print "\r* %-30s (#{percent}%)\t" % s
+        print "\r* #{s}".ljust(57) << "\t"
+        print "#{percent}%".light_blue unless percent == 100
       else
-        print "* %-57s\t" % s
+        print "* #{s}".ljust(57) << "\t"
       end
     end
-      puts
+      puts "[OK]".green
   else
     raise FELError, "No action specified"
   end

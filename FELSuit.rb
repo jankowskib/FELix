@@ -77,7 +77,7 @@ class FELSuit < FELix
       data = get_image_data(part)
       yield "Writing #{item.name}"
       write(item.address_low, data, :none, :fes) do |n|
-        yield "Writing #{item.name}", (n * data.bytesize) / 100
+        yield "Writing #{item.name}", (n * 100) / data.bytesize
       end
     end
     # 7. Disable NAND
@@ -86,13 +86,13 @@ class FELSuit < FELix
     # 8. Write u-boot
     yield "Writing u-boot"
     write(0, uboot, :uboot, :fes) do |n|
-      yield "Writing u-boot", (n * uboot.bytesize) / 100
+      yield "Writing u-boot", (n * 100) / uboot.bytesize
     end
     # 9. Write boot0
     boot0 = get_image_data(@structure.item_by_file("boot0_nand.fex"))
     yield "Writing boot0"
     write(0, boot0, :boot0, :fes) do |n|
-      yield "Writing boot0", (n * boot0.bytesize) / 100
+      yield "Writing boot0", (n * 100) / boot0.bytesize
     end
     # 10. Reboot
     yield "Rebooting"
