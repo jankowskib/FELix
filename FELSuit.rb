@@ -75,6 +75,7 @@ class FELSuit < FELix
         "image" unless part
       yield "Reading #{item.name}"
       data = get_image_data(part)
+      # @todo decompress sparse image of system
       yield "Writing #{item.name}"
       write(item.address_low, data, :none, :fes) do |n|
         yield "Writing #{item.name}", (n * 100) / data.bytesize

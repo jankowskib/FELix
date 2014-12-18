@@ -512,3 +512,29 @@ class AWImage < BinData::Record
   end
 
 end
+
+# Android sparse ext4 image header
+# As stated in (https://android.googlesource.com/platform/system/extras/+/gingerbread/ext4_utils/sparse_format.h)
+class SparseImageHeader < BinData::Record
+  endian    :little
+  uint32    :magic, :asserted_value => 0xed26ff3a
+  uint16    :major_version    # (0x1) - reject images with higher major versions
+  uint16    :minor_version    # (0x0) - allow images with higer minor versions
+  uint16    :file_hdr_sz      # 28 bytes for first revision of the file format
+  uint16    :chunk_hdr_sz     # 12 bytes for first revision of the file format
+  uint32    :blk_sz           # block size in bytes, must be a multiple of 4 (4096)
+  uint32    :total_blks       # total blocks in the non-sparse output image
+  uint32    :total_chunks     # total chunks in the sparse input image
+  uint32    :image_checksum   # CRC32 checksum of the original data, counting "don't care"
+                              #   as 0. Standard 802.3 polynomial, use a Public Domain
+                              #   table implementation
+end
+
+# Android sparse ext4 image chunk
+class SparseImageChunk < BinData::Record
+  endian    :little
+  uint16    :chunk_type      # 0xCAC1 -> :raw 0xCAC2 -> :fill 0xCAC3 -> don't care
+  uint16    :reserved1
+  uint32    :chunk_sz        # in blocks in output image
+  uint32    :total_sz        # in bytes of chunk input file including chunk header and data
+end
