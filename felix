@@ -23,8 +23,10 @@ require 'bindata'
 require 'crc32'
 require 'crypt/rc6'
 
+require_relative 'FELConsts'
 require_relative 'FELStructs'
 require_relative 'FELHelpers'
+require_relative 'FELSuit'
 
 # @example Routines (Send command and read data)
 #  1. Write (--> send | <-- recv)
@@ -175,7 +177,7 @@ class FELix
   # Open device, and setup endpoints
   # @param device [LIBUSB::Device] a device
   def initialize(device)
-    raise "Unexcepted argument type: #{device.inspect}" unless device.
+    raise FELError, "Unexcepted argument type: #{device.inspect}" unless device.
       kind_of?(LIBUSB::Device)
     @handle = device.open
     #@handle.detach_kernel_driver(0)
@@ -186,14 +188,14 @@ class FELix
 
   # Clean up on and finish program
   def bailout
-    print "* Finishing"
+    print "* Finishing\t"
     @handle.release_interface(0) if @handle
     @handle.close if @handle
-    puts "\t[OK]".green
-    exit
+    puts "[OK]".green
   rescue => e
-    puts "\t[FAIL]".red
+    puts "[FAIL]".red
     puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
+    $exit_code = FELIX_FAIL
   end
 
   # Send a request
@@ -252,19 +254,19 @@ class FELix
   def get_device_info
     data = send_request(AWFELStandardRequest.new.to_binary_s)
     if data == nil
-      raise "Failed to send request (data: #{data})"
+      raise FELError, "Failed to send request (data: #{data})"
     end
     data = recv_request(32)
     if data == nil || data.bytesize != 32
-      raise "Failed to receive device info (data: #{data})"
+      raise FELError, "Failed to receive device info (data: #{data})"
     end
     info = AWFELVerifyDeviceResponse.read(data)
     data = recv_request(8)
     if data == nil || data.bytesize != 8
-      raise "Failed to receive device status (data: #{data})"
+      raise FELError, "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
-    raise "Command failed (Status #{status.state})" if status.state > 0
+    raise FELError, "Command failed (Status #{status.state})" if status.state > 0
     info
   end
 
@@ -275,9 +277,10 @@ class FELix
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @return [String] requested data
   # @raise [String] error name
+  # @yieldparam [Integer] read bytes
   def read(address, length, tags=[:none], mode=:fel)
-    raise "Length not specifed" unless length
-    raise "Address not specifed" unless address
+    raise FELError, "Length not specifed" unless length
+    raise FELError, "Address not specifed" unless address
     result = ""
     remain_len = length
     request = AWFELMessage.new
@@ -293,8 +296,8 @@ class FELix
       end
       tags.each {|t| request.flags |= AWTags[t]}
       data = send_request(request.to_binary_s)
-      raise "Failed to send request (response len: #{data.bytesize} !=" <<
-        " 13)" if data.bytesize != 13
+      raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+        " != 13)" if data.bytesize != 13
 
       output = recv_request(request.len)
 
@@ -304,13 +307,12 @@ class FELix
       # Rescue if we received AWFELStatusResponse
       output = recv_request(request.len) if output.bytesize !=
        request.len && output.bytesize == 8
-      if output.bytesize != request.len
-        raise "Data size mismatch (data len #{output.bytesize} != #{request.len})"
-      end
+      raise FELError, "Data size mismatch (data len #{output.bytesize}" <<
+        " != #{request.len})" if output.bytesize != request.len
       status = recv_request(8)
-      raise "Failed to get device status (data: #{status})" if status.bytesize != 8
+      raise FELError, "Failed to get device status (data: #{status})" if status.bytesize != 8
       fel_status = AWFELStatusResponse.read(status)
-      raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0
+      raise FELError, "Command failed (Status #{fel_status.state})" if fel_status.state > 0
       result << output
       remain_len-=request.len
       # if EFEX_TAG_DRAM isnt set we read nand/sdcard
@@ -320,8 +322,7 @@ class FELix
       else
         address+=request.len
       end
-      print "\r* #{$options[:mode]}: Reading data (" <<
-      "#{length-remain_len}/#{$options[:length]} bytes)" unless $options[:verbose]
+      yield length-remain_len
     end
     result
   end
@@ -332,9 +333,10 @@ class FELix
   # @param tags [Array<AWTags>] operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @raise [String] error name
+  # @yieldparam [Integer] sent bytes
   def write(address, memory, tags=[:none], mode=:fel)
-    raise "Memory not specifed" unless memory
-    raise "Address not specifed" unless address
+    raise FELError, "Memory not specifed" unless memory
+    raise FELError, "Address not specifed" unless address
     total_len = memory.bytesize
     start = 0
     request = AWFELMessage.new
@@ -351,19 +353,19 @@ class FELix
       tags.each {|t| request.flags |= AWTags[t]}
       data = send_request(request.to_binary_s)
       if data == nil
-        raise "Failed to send request (#{request.cmd})"
+        raise FELError, "Failed to send request (#{request.cmd})"
       end
       data = send_request(memory.byteslice(start, request.len))
       if data == nil
-        raise "Failed to send data (#{start}/#{memory.bytesize})"
+        raise FELError, "Failed to send data (#{start}/#{memory.bytesize})"
       end
       data = recv_request(8)
       if data == nil || data.bytesize != 8
-        raise "Failed to receive device status (data: #{data})"
+        raise FELError, "Failed to receive device status (data: #{data})"
       end
       status = AWFELStatusResponse.read(data)
       if status.state > 0
-        raise "Command failed (Status #{status.state})"
+        raise FELError, "Command failed (Status #{status.state})"
       end
       start+=request.len
       total_len-=request.len
@@ -374,8 +376,7 @@ class FELix
       else
         address+=request.len
       end
-      print "\r* #{$options[:mode]}: Writing data (" <<
-      "#{start}/#{memory.bytesize} bytes)" unless $options[:verbose]
+      yield start # yield sent bytes
     end
   end
 
@@ -390,15 +391,15 @@ class FELix
     request.address = address
     data = send_request(request.to_binary_s)
     if data == nil
-      raise "Failed to send request (#{request.cmd})"
+      raise FELError, "Failed to send request (#{request.cmd})"
     end
     data = recv_request(8)
     if data == nil || data.bytesize != 8
-      raise "Failed to receive device status (data: #{data})"
+      raise FELError, "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
     if status.state > 0
-      raise "Command failed (Status #{status.state})"
+      raise FELError, "Command failed (Status #{status.state})"
     end
   end
 
@@ -412,16 +413,18 @@ class FELix
     request.cmd = req
     request.len = 0
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.bytesize} !=" <<
-    " 13)" if data.bytesize != 13
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.bytesize != 13
 
     output = recv_request(FELIX_MAX_CHUNK)
     Hexdump.dump output
 
     status = recv_request(8)
-    raise "Failed to get device status (data: #{status})" if status.bytesize != 8
+    raise FELError, "Failed to get device status (data: #{status})" if status.
+      bytesize != 8
     status = AWFELStatusResponse.read(status)
-    raise "Command failed (Status #{status.state})" if fel_status.state > 0
+    raise FELError, "Command failed (Status #{status.state})" if fel_status.
+      state > 0
   end
 
   # Verify last operation status
@@ -440,23 +443,24 @@ class FELix
       request.flags |= AWTags[tags]
     end
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.bytesize} !=" <<
-    " 13)" if data.length != 13
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.length != 13
     data = recv_request(12)
     if data.bytesize == 0
-      raise "Failed to receive verify request (no data)"
+      raise FELError, "Failed to receive verify request (no data)"
     elsif data.bytesize != 12
-      raise "Failed to receive verify request (data len #{data.bytesize} != 12)"
+      raise FELError, "Failed to receive verify request (data len " <<
+        "#{data.bytesize} != 12)"
     end
     status_response = AWFESVerifyStatusResponse.read(data)
 
     data = recv_request(8)
     if data == nil || data.bytesize != 8
-      raise "Failed to receive device status (data: #{data})"
+      raise FELError, "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
     if status.state > 0
-      raise "Command failed (Status #{status.state})"
+      raise FELError, "Command failed (Status #{status.state})"
     end
 
     status_response
@@ -467,22 +471,23 @@ class FELix
   # @raise [String] error name
   # @note Use only in :fes mode. MBR must be written before
   def set_storage_state(how)
-    raise "Invalid parameter state (#{how})" unless [:on, :off].include? how
+    raise FELError, "Invalid parameter state (#{how})" unless [:on, :off].
+      include? how
     request = AWFELStandardRequest.new
     request.cmd = FESCmd[:flash_set_on] if how == :on
     request.cmd = FESCmd[:flash_set_off] if how == :off
 
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.bytesize} !=" <<
-      " 13)" if data.bytesize != 13
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+      " != 13)" if data.bytesize != 13
 
     data = recv_request(8)
     if data == nil || data.bytesize != 8
-      raise "Failed to receive device status (data: #{data})"
+      raise FELError, "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
     if status.state > 0
-      raise "Command failed (Status #{status.state})"
+      raise FELError, "Command failed (Status #{status.state})"
     end
 
   end
@@ -497,13 +502,14 @@ class FELix
   # @option opts :media_index [Symbol<FESIndex>] one of index (default `:dram`)
   # @option opts :length [Integer] size of data (use only with `:read`)
   # @note Use only in :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this
+  # @todo need to add yield block
   def transmite(direction, *opts)
     opts = opts.first
     opts[:media_index] ||= :dram
     start = 0
     if direction == :write
-      raise "Missing arguments for FES_TRANSMITE(download)" unless opts[:memory] &&
-        opts[:address]
+      raise FELError, "Missing arguments for FES_TRANSMITE(download)" unless
+        opts[:memory] && opts[:address]
 
       total_len = opts[:memory].bytesize
       address = opts[:address]
@@ -521,19 +527,19 @@ class FELix
         end
         data = send_request(request.to_binary_s)
         if data == nil
-          raise "Failed to send request (#{request.cmd})"
+          raise FELError, "Failed to send request (#{request.cmd})"
         end
         data = send_request(opts[:memory].byteslice(start, request.len))
         if data == nil
-          raise "Failed to send data (#{start}/#{opts[:memory].bytesize})"
+          raise FELError, "Failed to send data (#{start}/#{opts[:memory].bytesize})"
         end
         data = recv_request(8)
         if data == nil || data.bytesize != 8
-          raise "Failed to receive device status (data: #{data})"
+          raise FELError, "Failed to receive device status (data: #{data})"
         end
         status = AWFELStatusResponse.read(data)
         if status.state > 0
-          raise "Command failed (Status #{status.state})"
+          raise FELError, "Command failed (Status #{status.state})"
         end
         start+=request.len
         total_len-=request.len
@@ -543,11 +549,11 @@ class FELix
         "#{start}/#{opts[:memory].bytesize} bytes)" unless $options[:verbose]
       end
     elsif direction == :read
-      raise "Missing arguments for FES_TRANSMITE(upload)" unless opts[:length] &&
+      raise FELError, "Missing arguments for FES_TRANSMITE(upload)" unless opts[:length] &&
         opts[:address]
       # @todo Add support for reading>65536 data
-      raise "reading more than #{FELIX_MAX_CHUNK} bytes is not implemented" <<
-        " yet!" if opts[:length] > FELIX_MAX_CHUNK
+      raise FELError, "reading more than #{FELIX_MAX_CHUNK} bytes is not " <<
+        "implemented yet!" if opts[:length] > FELIX_MAX_CHUNK
       print "\r* Reading" unless $options[:verbose]
 
       request = AWFESTrasportRequest.new
@@ -600,19 +606,20 @@ class FELix
     request.len = AWActions[action]
 
     data = send_request(request.to_binary_s)
-    raise "Failed to send request (response len: #{data.bytesize} !=" <<
-    " 13)" if data.bytesize != 13
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.bytesize != 13
 
     data = recv_request(8)
     if data == nil || data.bytesize != 8
-      raise "Failed to receive device status (data: #{data})"
+      raise FELError, "Failed to receive device status (data: #{data})"
     end
     status = AWFELStatusResponse.read(data)
-    raise "Command failed (Status #{status.state})" if status.state > 0
+    raise FELError, "Command failed (Status #{status.state})" if status.state > 0
   end
 
 end
 
+$exit_code = FELIX_SUCCESS
 $options = {}
 puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
 puts "Warning:".red << "I don't give any warranty on this software"
@@ -639,11 +646,11 @@ begin
           puts "* %2d: (port %d) FEL device %d@%d %x:%x" % [++i, d.port_number,
             d.bus_number, d.device_address, d.idVendor, d.idProduct]
         end
-        exit
+        exit FELIX_SUCCESS
       end
       opts.on("--decode path", String, "Decode packets from Wireshark dump") do |f|
         FELHelpers.debug_packets(f)
-        exit
+        exit FELIX_SUCCESS
       end
       opts.on("--decode-mbr path", String, "Decode sunxi-mbr.fex") do |f|
         begin
@@ -651,17 +658,18 @@ begin
           AWMBR.read(mbr).inspect
         rescue Errno::ENOENT
           puts "File not found!"
-        ensure
-          exit
+          exit FELIX_FAIL
         end
+        exit FELIX_SUCCESS
       end
       opts.on("--image-info image", String, "Show LiveSuit's image info") do |f|
         begin
           FELHelpers.show_image_info(f)
         rescue Errno::ENOENT
           puts "File not found!"
+          exit FELIX_FAIL
         end
-        exit
+        exit FELIX_SUCCESS
       end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
@@ -669,17 +677,18 @@ begin
           AWDownloadInfo.read(dl).inspect
         rescue Errno::ENOENT
           puts "File not found!"
+          exit FELIX_FAIL
         end
-        exit
+        exit FELIX_SUCCESS
       end
       opts.on("--version", "Show version") do
         puts FELIX_VERSION
-        exit
+        exit FELIX_SUCCESS
       end
 
       opts.separator "* FEL/FES mode".light_blue.underline
       opts.on("--flash image", String, "Flash Livesuit image") do |f|
-        $options[:action] = :read
+        $options[:action] = :flash
         $options[:file] = f
       end
       opts.on("--info", "Get device info") { $options[:action] = :device_info }
@@ -758,191 +767,142 @@ begin
   # if argument is specfied we want to receive data from the device
   $options[:direction] = [:read, :transmite].include?($options[:action]) ? :read : :write
 
-  unless ($options[:tags] - AWTags.keys).empty?
-    puts "Invalid tag. Please specify one or more of " << AWTags.keys.join(", ")
-    exit
-  end
+  raise OptionParser::InvalidArgument, "Invalid tag. Please specify one or" <<
+    " more of " << AWTags.keys.join(", ") unless ($options[:tags] - AWTags.
+    keys).empty?
   raise OptionParser::MissingArgument, "You must specify --address and --length!" if($options[:direction] == :read &&
     ($options[:length] == nil || $options[:address] == nil) &&
     [:read, :transmite].include?($options[:action]))
   raise OptionParser::MissingArgument, "You must specify --address!" if($options[:direction] == :write &&
      $options[:address] == nil && [:write, :transmite, :run].
      include?($options[:action]))
-#  raise OptionParser::MissingArgument if($options[:action] == :read &&
-#    ($options[:length] == nil || $options[:address] == nil))
-#  raise OptionParser::MissingArgument if(($options[:action] == :write ||
-#    $options[:action] == :run) && $options[:address] == nil)
 rescue OptionParser::MissingArgument => e
   puts "Missing argument (#{e}). Type FELix.rb --help to see usage"
-  exit
+  exit FELIX_FAIL
 rescue OptionParser::InvalidArgument
   puts "Invalid argument. Type FELix.rb --help to see usage"
-  exit
+  exit FELIX_FAIL
 rescue OptionParser::InvalidOption
   puts "Unknown option. Type FELix.rb --help to see usage"
-  exit
+  exit FELIX_FAIL
 end
-
-usb = LIBUSB::Context.new
-devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
-if devices.empty?
-    puts "No device found in FEL mode!"
-    exit
-end
-
-if devices.size > 1 && $options[:device] == nil # If there's more than one
-                                                # device list and ask to select
-    puts "Found more than 1 device (use --device <number> parameter):"
-    exit
-end
-$options[:device] ||= 0
 
 begin
+  usb = LIBUSB::Context.new
+  devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
+  raise FELError, "No device found in FEL mode!" if devices.empty?
+  # If there's more than one device list and ask to select
+  raise FELError, "Found more than 1 device (use --device <number> parameter)" if
+    devices.size > 1 && $options[:device] == nil
+
+  $options[:device] ||= 0
+
   dev = devices[$options[:device]]
-  print "* Connecting to device at port %d, FEL device %d@%d %x:%x" % [
+  print "* Connecting to device at port %d, FEL device %d@%d %x:%x\t" % [
     dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
     dev.idProduct]
 
   fel = FELix.new(dev)
-  puts "\t[OK]".green
+  puts "[OK]".green
 
   case $options[:action]
   when :device_info # case for FEL_R_VERIFY_DEVICE
-    begin
-      info = fel.get_device_info
-      info.each_pair do |k, v|
-        print "%-40s" % k.to_s.yellow
-        case k
-        when :board then puts FELHelpers.board_id_to_str(v)
-        when :mode then puts AWDeviceMode.key(v)
-        when :data_flag, :data_length, :data_start_address then puts "0x%08x" % v
-        else
-          puts "#{v}"
-        end
+    info = fel.get_device_info
+    info.each_pair do |k, v|
+      print "%-40s" % k.to_s.yellow
+      case k
+      when :board then puts FELHelpers.board_id_to_str(v)
+      when :mode then puts AWDeviceMode.key(v)
+      when :data_flag, :data_length, :data_start_address then puts "0x%08x" % v
+      else
+        puts "#{v}"
       end
-    rescue => e
-      puts "Failed to receive device info (#{e.message})"
     end
   when :format
-    begin
-      print "* Formating NAND (it may take ~60 seconds)" unless $options[:verbose]
-      mbr = File.read($options[:file])
-      status = fel.write_mbr(mbr, true)
-      raise "Format failed (#{status.crc})" if status.crc != 0
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to format device (#{e.message}) at #{e.backtrace.join("\n")}"
-    end
+    print "* Formating NAND (it may take ~60 seconds)\t" unless $options[:verbose]
+    mbr = File.read($options[:file])
+    status = fel.write_mbr(mbr, true)
+    raise FELError, "Format failed (#{status.crc})" if status.crc != 0
+    puts "[OK]".green unless $options[:verbose]
   when :mbr
-    begin
-      print "* Writing MBR" unless $options[:verbose]
-      mbr = File.read($options[:file])
-      status = fel.write_mbr(mbr, false)
-      raise "Write failed (#{status.crc})" if status.crc != 0
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to write device (#{e.message}) at #{e.backtrace.join("\n")}"
-    end
+    print "* Writing MBR\t" unless $options[:verbose]
+    mbr = File.read($options[:file])
+    status = fel.write_mbr(mbr, false)
+    raise FELError, "Write failed (#{status.crc})" if status.crc != 0
+    puts "[OK]".green unless $options[:verbose]
   when :storage
-    begin
-      print "* Setting flash state to #{$options[:how]}" unless $options[:verbose]
-      fel.set_storage_state($options[:how])
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to set flash state (#{e.message}) at #{e.backtrace.join("\n")}"
-    end
+    print "* Setting flash state to #{$options[:how]}\t" unless $options[:verbose]
+    fel.set_storage_state($options[:how])
+    puts "[OK]".green unless $options[:verbose]
   when :read
-    begin
-      data = fel.read($options[:address], $options[:length], $options[:tags],
-        $options[:mode])
-      File.open($options[:file], "w") { |f| f.write(data) }
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to read data: #{e.message} at #{e.backtrace.join("\n")}"
+    print "* #{$options[:mode]}: Reading data\t" unless $options[:verbose]
+    data = fel.read($options[:address], $options[:length], $options[:tags],
+      $options[:mode]) do |b|
+        print "\r* #{$options[:mode]}: Reading data (" <<
+        "#{b}/#{$options[:length]} bytes)\t" unless $options[:verbose]
     end
+    File.open($options[:file], "w") { |f| f.write(data) }
+    puts "[OK]".green unless $options[:verbose]
   when :write
-    begin
-      print "* #{$options[:mode]}: Reading file" unless $options[:verbose]
-      data = File.read($options[:file])
-      print " (#{data.bytesize} bytes)" unless $options[:verbose]
-      fel.write($options[:address], data, $options[:tags],
-        $options[:mode])
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to write data: #{e.message} at #{e.backtrace.join("\n")}"
+    print "* #{$options[:mode]}: Reading file" unless $options[:verbose]
+    data = File.read($options[:file])
+    print " (#{data.bytesize} bytes)\t" unless $options[:verbose]
+    fel.write($options[:address], data, $options[:tags], $options[:mode]) do |b|
+      print "\r* #{$options[:mode]}: Writing data (" <<
+      "#{b}/#{data.bytesize} bytes)\t" unless $options[:verbose]
     end
+    puts "[OK]".green unless $options[:verbose]
   when :run
-    begin
-      print "* #{$options[:mode]}: Executing code @ 0x%08x" %
-        $options[:address] unless $options[:verbose]
-      fel.run($options[:address], $options[:mode])
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to execute: #{e.message} at #{e.backtrace.join("\n")}"
-    end
+    print "* #{$options[:mode]}: Executing code @ 0x%08x\t" %
+      $options[:address] unless $options[:verbose]
+    fel.run($options[:address], $options[:mode])
+    puts "[OK]".green unless $options[:verbose]
   when :request
-    begin
-      fel.request($options[:request])
-    rescue => e
-      puts "Failed to send a request(#{$options[:request]}): #{e.message}" <<
-        " at #{e.backtrace.join("\n")}"
-    end
+    print "* Sending a request\t" unless $options[:verbose]
+    fel.request($options[:request])
+    puts "[OK]".green unless $options[:verbose]
   when :transmite
-    begin
-      if $options[:direction] == :write
-        print "* Reading file" unless $options[:verbose]
-        data = File.read($options[:file])
-        print " (#{data.bytesize} bytes)" unless $options[:verbose]
-      end
-      data ||= nil
-      data = fel.transmite($options[:direction], :address => $options[:address],
-        :length => $options[:length], :memory => data, :media_index =>
-        $options[:index])
-      if $options[:direction] == :read && data
-        print "\r* Writing data (#{data.length} bytes )"
-        File.open($options[:file], "w") { |f| f.write(data) }
-      end
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to transmite: #{e.message} at #{e.backtrace.join("\n")}"
+    if $options[:direction] == :write
+      print "* Reading file" unless $options[:verbose]
+      data = File.read($options[:file])
+      print " (#{data.bytesize} bytes)\t" unless $options[:verbose]
     end
+    data ||= nil
+    data = fel.transmite($options[:direction], :address => $options[:address],
+      :length => $options[:length], :memory => data, :media_index =>
+      $options[:index])
+    if $options[:direction] == :read && data
+      print "\r* Writing data (#{data.length} bytes )\t"
+      File.open($options[:file], "w") { |f| f.write(data) }
+    end
+    puts "[OK]".green unless $options[:verbose]
   when :reboot
-    begin
-      print "* Rebooting" unless $options[:verbose]
-      fel.set_tool_mode(:usb_tool_update, :none)
-      puts "\t[OK]".green unless $options[:verbose]
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed to reboot: #{e.message} at #{e.backtrace.join("\n")}"
-    end
+    print "* Rebooting\t" unless $options[:verbose]
+    fel.set_tool_mode(:usb_tool_update, :none)
+    puts "[OK]".green unless $options[:verbose]
   when :flash
-    begin
-      print "* Checking image" unless $options[:verbose]
-      raise "Image not found!" unless $options[:file].exist?
-      puts "\t[OK]".green unless $options[:verbose]
-      flash($options[:file])
-    rescue => e
-      puts "\t[FAIL]".red unless $options[:verbose]
-      puts "Failed: #{e.message} at #{e.backtrace.join("\n")}"
-    end
+    print "* Checking image\t" unless $options[:verbose]
+    raise FELError, "Image not found!" unless $options[:file].exist?
+    puts "[OK]".green unless $options[:verbose]
+    flash($options[:file])
   else
-    puts "No action specified"
+    raise FELError, "No action specified"
   end
 
+rescue FELError => e
+  puts "[FAIL]".red unless $options[:verbose]
+  puts "#{e.message}"
+  $exit_code = FELIX_FAIL
 rescue LIBUSB::ERROR_NOT_SUPPORTED
-  puts "\t[FAIL]".red
-  puts "Error: You must install libusb filter on your usb device driver"
+  puts "[FAIL]".red
+  puts "You must install libusb filter on your usb device driver"
+  $exit_code = FELIX_FAIL
 rescue => e
-  puts "\t[FAIL]".red
-  puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
+  puts "[FATAL]".red
+  puts "#{e.message} at #{e.backtrace.join("\n")}"
+  $exit_code = FELIX_FATAL
 ensure
   # Cleanup the handle
   fel.bailout if fel
+  exit $exit_code
 end

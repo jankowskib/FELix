@@ -22,6 +22,10 @@ FELIX_HEADER_KEY = "\0" * 31 << "i"
 FELIX_ITEM_KEY   = "\1" * 31 << "m"
 FELIX_DATA_KEY   = "\2" * 31 << "g"
 
+FELIX_SUCCESS = 0
+FELIX_FAIL = 1
+FELIX_FATAL = 2
+
 #AWUSBRequest type
 USBCmd = {
   :read                            => 0x11,

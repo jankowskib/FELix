@@ -269,7 +269,8 @@ class FELHelpers
       end
       print "Decrypting..." if encrypted
       img = decrypt(img, FELIX_HEADER_KEY) if encrypted
-      raise "Unrecognized image format" if img.byteslice(0, 8) != "IMAGEWTY"
+      raise FELError, "Unrecognized image format" if img.byteslice(0, 8) !=
+        "IMAGEWTY"
       # @todo read header version
       item_count = img[encrypted ? 0x38 : 0x3C, 4].unpack("V").first
       raise "Firmware contains no items!" if item_count == 0

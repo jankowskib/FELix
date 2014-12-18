@@ -13,7 +13,10 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #
-require_relative 'FELConsts'
+
+# Program exception filter class
+class FELError < StandardError
+end
 
 class AWUSBRequest < BinData::Record # size 32
   string   :magic,     :length => 4, :initial_value => "AWUC"
