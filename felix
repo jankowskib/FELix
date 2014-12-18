@@ -186,6 +186,28 @@ class FELix
     @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
   end
 
+  # Reconnect to currently connected device
+  # @return true if reconnect succeed
+  def reconnect?
+    usb = LIBUSB::Context.new
+    device = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8).select do |d|
+      @handle.device.port_number == d.port_number
+    end
+    if device[0]
+      # Close old handle
+      @handle.release_interface(0) if @handle
+      @handle.close if @handle
+      # Open new one
+      @handle = device[0].open
+      @handle.claim_interface(0)
+      @usb_out = device[0].endpoints.select { |e| e.direction == :out }[0]
+      @usb_in = device[0].endpoints.select { |e| e.direction == :in }[0]
+      true
+    else
+      false
+    end
+  end
+
   # Clean up on and finish program
   def bailout
     print "* Finishing\t"
@@ -903,7 +925,7 @@ begin
     fel.set_tool_mode(:usb_tool_update, :none)
     puts "[OK]".green unless $options[:verbose]
   when :flash
-    #fel.flash
+    fel.flash { |s| puts s }
   else
     raise FELError, "No action specified"
   end

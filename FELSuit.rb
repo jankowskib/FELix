@@ -35,13 +35,25 @@ class FELSuit < FELix
 
   # Flash image to the device
   # @raise error string if something wrong happen
+  # @yieldparam [String] status
   def flash
     # 1. Let's check device mode
     info = get_device_info
     raise FELError, "Failed to get device info. Try to reboot!" unless info
     # 2. If we're in FEL mode we must firstly boot2fes
-    boot_to_fes && info = get_device_info if info.mode == :fel
-    raise FELError, "Failed to boot to fes" unless info.mode == :fes
+    uboot = get_image_data(get_image_item("u-boot.fex"))
+    fes = get_image_data(get_image_item("fes1.fex"))
+    if info.mode == AWDeviceMode[:fel]
+      yield "* Booting to FES" if block_given?
+      boot_to_fes(fes, uboot)
+      yield "* Waiting for reconnection" if block_given?
+      # @todo use hotplug in the future
+      sleep(5)
+      raise "Failed to reconnect!" unless reconnect?
+      info = get_device_info
+    end
+    raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
+    # 3. Wait for device reconnection
   end
 
   # Download egon, uboot and run code in hope we boot to fes
@@ -54,7 +66,7 @@ class FELSuit < FELix
     write(0x2000, egon)
     run(0x2000)
     write(0x4a000000, uboot)
-    write(0x4a0000E0, AWUBootWorkMode[:usb_product].to_s.to_byte_string) # write 0x10 flag
+    write(0x4a0000E0, AWUBootWorkMode[:usb_product].chr) # write 0x10 flag
     run(0x4a000000)
   end
 
