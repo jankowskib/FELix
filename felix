@@ -295,7 +295,7 @@ class FELix
   # Read memory from device
   # @param address [Integer] memory address to read from
   # @param length [Integer] size of data
-  # @param tags [Array<AWTags>] operation tag (zero or more of AWTags)
+  # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @return [String] requested data
   # @raise [String] error name
@@ -308,6 +308,11 @@ class FELix
     request = AWFELMessage.new
     request.cmd = FELCmd[:upload] if mode == :fel
     request.cmd = FESCmd[:upload] if mode == :fes
+    if tags.kind_of?(Array)
+      tags.each {|t| request.flags |= AWTags[t]}
+    else
+      request.flags |= AWTags[tags]
+    end
 
     while remain_len>0
       request.address = address
@@ -316,7 +321,6 @@ class FELix
       else
         request.len = FELIX_MAX_CHUNK
       end
-      tags.each {|t| request.flags |= AWTags[t]}
       data = send_request(request.to_binary_s)
       raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
         " != 13)" if data.bytesize != 13
@@ -352,7 +356,7 @@ class FELix
   # Write data to device memory
   # @param address [Integer] place in memory to write
   # @param memory [String] data to write
-  # @param tags [Array<AWTags>] operation tag (zero or more of AWTags)
+  # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @raise [String] error name
   # @yieldparam [Integer] sent bytes
@@ -364,15 +368,22 @@ class FELix
     request = AWFELMessage.new
     request.cmd = FELCmd[:download] if mode == :fel
     request.cmd = FESCmd[:download] if mode == :fes
+    if tags.kind_of?(Array)
+      tags.each {|t| request.flags |= AWTags[t]}
+    else
+      request.flags |= AWTags[tags]
+    end
 
     while total_len>0
       request.address = address
       if total_len / FELIX_MAX_CHUNK == 0
         request.len = total_len
+        # At last chunk finish tag must be set
+        request.flags |= AWTags[:finish] if mode == :fes
       else
         request.len = FELIX_MAX_CHUNK
       end
-      tags.each {|t| request.flags |= AWTags[t]}
+
       data = send_request(request.to_binary_s)
       if data == nil
         raise FELError, "Failed to send request (#{request.cmd})"
@@ -450,7 +461,7 @@ class FELix
   end
 
   # Verify last operation status
-  # @param tags [Hash, Symbol] operation tag (zero or more of AWTags)
+  # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @return [AWFESVerifyStatusResponse] device status
   # @raise [String] error name
   # @note Use only in :fes mode
@@ -459,7 +470,7 @@ class FELix
     request.cmd = FESCmd[:verify_status]
     request.address = 0
     request.len = 0
-    if tags.kind_of?(Hash)
+    if tags.kind_of?(Array)
       tags.each {|t| request.flags |= AWTags[t]}
     else
       request.flags |= AWTags[tags]
@@ -925,7 +936,16 @@ begin
     fel.set_tool_mode(:usb_tool_update, :none)
     puts "[OK]".green unless $options[:verbose]
   when :flash
-    fel.flash { |s| puts s }
+    print "%-59s\t" % "* Checking device state" unless $options[:verbose]
+    fel.flash do |s, percent|
+      puts "[OK]".green unless $options[:verbose] || percent
+      if percent
+        print "\r* %-30s (#{percent}%)\t" % s
+      else
+        print "* %-57s\t" % s
+      end
+    end
+      puts
   else
     raise FELError, "No action specified"
   end
