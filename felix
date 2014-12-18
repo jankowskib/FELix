@@ -210,7 +210,7 @@ class FELix
 
   # Clean up on and finish program
   def bailout
-    print "* Finishing".ljust(57) << "\t"
+    print "* Cleaning up".ljust(57) << "\t"
     @handle.release_interface(0) if @handle
     @handle.close if @handle
     puts "[OK]".green
@@ -384,7 +384,7 @@ class FELix
       # At last chunk finish tag must be set
       request.flags |= AWTags[:finish] if mode == :fes &&
         total_len <= FELIX_MAX_CHUNK
-        
+
       data = send_request(request.to_binary_s)
       if data == nil
         raise FELError, "Failed to send request (#{request.cmd})"
