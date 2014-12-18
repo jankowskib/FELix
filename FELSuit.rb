@@ -29,7 +29,8 @@ class FELSuit < FELix
     raise FELError, "Image not found!" unless File.exist?(@image)
     @encrypted = encrypted?
     @structure = fetch_image_structure
-    p get_image_item("u-boot.fex")
+    raise FELError, "Flashing old images is not supported " <<
+      "yet!" unless get_image_item("u-boot.fex") && get_image_item("fes1.fex")
   end
 
   # Flash image to the device
@@ -73,9 +74,21 @@ class FELSuit < FELix
   # @return [AWImageItemV1, AWImageItemV3, nil] item if found, else nil
   def get_image_item(item)
     i = @structure.item.select do |it|
-      it.path[/(?:.*\\)?(.+)$/] == item
+      it.path.match(/(?:.*\\)?(.+)$/)[1] == item
     end
     i.first if i
+  end
+
+  # Read item data from LiveSuit image
+  # @param item [AWImageItemV1, AWImageItemV3] item data
+  # @return [String] binary data
+  # @raise [FELError] if read failed
+  def get_image_data(item)
+    data = File.read(@image, item.data_len_low,item.off_len_low)
+    raise FELError, "Cannot read data" unless data
+    data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
+    data
+    # @todo decrypt twofish
   end
 
   # Read header & image items information
@@ -94,7 +107,7 @@ class FELSuit < FELix
       end
     else
       # much faster if image is not encrypted
-      File.open(@image) { |f| AWImage.binread(f) }
+      File.open(@image) { |f| AWImage.read(f) }
     end
   end
 
