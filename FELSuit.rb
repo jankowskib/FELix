@@ -57,26 +57,6 @@ class FELSuit < FELix
     run(0x4a000000)
   end
 
-  # Write MBR to NAND (and do format)
-  # @param mbr [String] new mbr. Must have 65536 bytes of length
-  # @param format [TrueClass, FalseClass] erase data
-  # @return [AWFESVerifyStatusResponse] result of sunxi_sprite_download_mbr (crc:-1 if fail)
-  # @raise [String] error name
-  # @note Use only in :fes mode
-  # @note **Warining**: Device may do format anyway if NAND version doesn't match!
-  def write_mbr(mbr, format=false)
-    raise FELError, "MBR is empty!" if mbr.empty?
-    raise FELError, "MBR is too small" unless mbr.bytesize == 65536
-    # 1. Force platform->erase_flag => 1 or 0 if we dont wanna erase
-    write(0, format ? "\1\0\0\0" : "\0\0\0\0", [:erase, :finish], :fes)
-    # 2. Verify status (actually this is unecessary step [last_err is not set at all])
-    # verify_status(:erase)
-    # 3. Write MBR
-    write(0, mbr, [:mbr, :finish], :fes)
-    # 4. Get result value of sunxi_sprite_verify_mbr
-    verify_status(:mbr)
-  end
-
   # Check if image is encrypted
   # @raise [FELError] if image decryption failed
   def encrypted?
