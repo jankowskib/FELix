@@ -378,12 +378,13 @@ class FELix
       request.address = address
       if total_len / FELIX_MAX_CHUNK == 0
         request.len = total_len
-        # At last chunk finish tag must be set
-        request.flags |= AWTags[:finish] if mode == :fes
       else
         request.len = FELIX_MAX_CHUNK
       end
-
+      # At last chunk finish tag must be set
+      request.flags |= AWTags[:finish] if mode == :fes &&
+        total_len <= FELIX_MAX_CHUNK
+        
       data = send_request(request.to_binary_s)
       if data == nil
         raise FELError, "Failed to send request (#{request.cmd})"

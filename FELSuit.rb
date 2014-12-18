@@ -62,7 +62,7 @@ class FELSuit < FELix
     mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
     dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
       "dlinfo.fex")))
-    status = write_mbr(mbr, true)
+    status = write_mbr(mbr, false)
     raise FELError, "Cannot flash new partition table" if status.crc != 0
     # 5. Enable NAND
     yield "Attaching NAND driver"
