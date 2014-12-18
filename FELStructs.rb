@@ -288,7 +288,7 @@ class AWDownloadItem < BinData::Record
   uint32 :lenhi, :initial_value => 0
   uint32 :lenlo
   string :filename, :length => 16, :trim_padding => true
-  string :virtual_filename, :length => 16, :trim_padding => true
+  string :virtual_filename, :length => 16, :trim_padding => true # checksum of the item
   uint32 :encrypt, :initial_value => 0
   uint32 :verify, :initial_value => 0
 end
@@ -304,7 +304,7 @@ class AWLegacyDownloadItem < BinData::Record
   uint32 :lenlo
   string :part, :length => 12, :trim_padding => true
   string :filename, :length => 16, :trim_padding => true
-  string :virtual_filename, :length => 16, :trim_padding => true
+  string :virtual_filename, :length => 16, :trim_padding => true # checksum of the item
   uint32 :encrypt, :initial_value => 0
 end
 
@@ -506,7 +506,7 @@ class AWImage < BinData::Record
   # @return [AWImageItemV1, AWImageItemV3, nil] first item if found, else nil
   def item_by_sign(signature)
     item = self.item.select do |it|
-      it.sub_type == filename
+      it.sub_type == signature
     end
     item.first if item
   end

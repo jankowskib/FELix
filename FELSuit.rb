@@ -30,30 +30,74 @@ class FELSuit < FELix
     @encrypted = encrypted?
     @structure = fetch_image_structure
     raise FELError, "Flashing old images is not supported " <<
-      "yet!" unless get_image_item("u-boot.fex") && get_image_item("fes1.fex")
+      "yet!" unless @structure.item_by_file("u-boot.fex") && @structure.
+      item_by_file("fes1.fex")
   end
 
   # Flash image to the device
   # @raise error string if something wrong happen
   # @yieldparam [String] status
+  # @yieldparam [Integer] Percentage status if there's active transfer
   def flash
     # 1. Let's check device mode
     info = get_device_info
     raise FELError, "Failed to get device info. Try to reboot!" unless info
     # 2. If we're in FEL mode we must firstly boot2fes
-    uboot = get_image_data(get_image_item("u-boot.fex"))
-    fes = get_image_data(get_image_item("fes1.fex"))
+    uboot = get_image_data(@structure.item_by_file("u-boot.fex"))
+    fes = get_image_data(@structure.item_by_file("fes1.fex"))
     if info.mode == AWDeviceMode[:fel]
-      yield "* Booting to FES" if block_given?
+      yield "Booting to FES" if block_given?
       boot_to_fes(fes, uboot)
-      yield "* Waiting for reconnection" if block_given?
+      yield "Waiting for reconnection" if block_given?
+      # 3. Wait for device reconnection
       # @todo use hotplug in the future
       sleep(5)
-      raise "Failed to reconnect!" unless reconnect?
+      raise FELError, "Failed to reconnect!" unless reconnect?
       info = get_device_info
     end
+    # 4. Write MBR
+    # @todo add format parameter
+    yield "Writing new paratition table"
     raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
-    # 3. Wait for device reconnection
+    mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
+    dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
+      "dlinfo.fex")))
+    status = write_mbr(mbr, true)
+    raise FELError, "Cannot flash new partition table" if status.crc != 0
+    # 5. Enable NAND
+    yield "Attaching NAND driver"
+    set_storage_state(:on)
+    # 6. Write partitions
+    dlinfo.item.each do |item|
+      break if item.name.empty?
+      part = @structure.item_by_sign(item.filename)
+      raise FELError, "Cannot find item: #{item.filename} in the " <<
+        "image" unless part
+      yield "Reading #{item.name}"
+      data = get_image_data(part)
+      yield "Writing #{item.name}"
+      write(item.address_low, data, :none, :fes) do |n|
+        yield "Writing #{item.name}", (n * data.bytesize) / 100
+      end
+    end
+    # 7. Disable NAND
+    yield "Detaching NAND driver"
+    set_storage_state(:off)
+    # 8. Write u-boot
+    yield "Writing u-boot"
+    write(0, uboot, :uboot, :fes) do |n|
+      yield "Writing u-boot", (n * uboot.bytesize) / 100
+    end
+    # 9. Write boot0
+    boot0 = get_image_data(@structure.item_by_file("boot0_nand.fex"))
+    yield "Writing boot0"
+    write(0, boot0, :boot0, :fes) do |n|
+      yield "Writing boot0", (n * boot0.bytesize) / 100
+    end
+    # 10. Reboot
+    yield "Rebooting"
+    set_tool_mode(:usb_tool_update, :none)
+    yield "Finished"
   end
 
   # Download egon, uboot and run code in hope we boot to fes
@@ -81,21 +125,12 @@ class FELSuit < FELix
     raise FELError, "Failed to decrypt image"
   end
 
-  # Read item from LiveSuit image
-  # @param item [String] item name without path (i.e. system.fex, u-boot.fex,...)
-  # @return [AWImageItemV1, AWImageItemV3, nil] item if found, else nil
-  def get_image_item(item)
-    i = @structure.item.select do |it|
-      it.path.match(/(?:.*\\)?(.+)$/)[1] == item
-    end
-    i.first if i
-  end
-
   # Read item data from LiveSuit image
   # @param item [AWImageItemV1, AWImageItemV3] item data
   # @return [String] binary data
   # @raise [FELError] if read failed
   def get_image_data(item)
+    raise FELError, "Item not exist" unless item
     data = File.read(@image, item.data_len_low,item.off_len_low)
     raise FELError, "Cannot read data" unless data
     data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
