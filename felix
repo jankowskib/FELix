@@ -696,12 +696,14 @@ begin
         $options[:action] = :run
       end
       opts.on("--read file", String, "Read memory to file. Use with --address" <<
-        " and --length. In FES mode you can additionally specify --tags") do |f|
+        ", --length, --context. In FES mode you can additionally specify " <<
+        "--tags") do |f|
          $options[:action] = :read
          $options[:file] = f
        end
       opts.on("--write file", String, "Write file to memory. Use with" <<
-        " --address. In FES mode you can additionally specify --tags") do |f|
+        " --address, --context. In FES mode you can additionally specify " <<
+        "--tags") do |f|
          $options[:action] = :write
          $options[:file] = f
       end
@@ -747,7 +749,7 @@ begin
         $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
       end
       opts.on("-c", "--context ctx", Modes, "Set command context to one of " <<
-      "mode (" << Modes.join(", ") << ")") do |m|
+      "mode (" << Modes.join(", ") << "). Default: fes") do |m|
         $options[:mode] = m.to_sym
       end
       opts.on("-i", "--index idx", FESIndex.keys, "Set media index " <<
@@ -801,8 +803,8 @@ begin
   print "* Connecting to device at port %d, FEL device %d@%d %x:%x\t" % [
     dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
     dev.idProduct]
-
-  fel = FELix.new(dev)
+  fel = $options[:action] == :flash ? FELSuit.new(dev, $options[:file]) : FELix.
+    new(dev)
   puts "[OK]".green
 
   case $options[:action]
@@ -881,10 +883,7 @@ begin
     fel.set_tool_mode(:usb_tool_update, :none)
     puts "[OK]".green unless $options[:verbose]
   when :flash
-    print "* Checking image\t" unless $options[:verbose]
-    raise FELError, "Image not found!" unless $options[:file].exist?
-    puts "[OK]".green unless $options[:verbose]
-    flash($options[:file])
+    #fel.flash
   else
     raise FELError, "No action specified"
   end
