@@ -27,6 +27,7 @@ require_relative 'FELConsts'
 require_relative 'FELStructs'
 require_relative 'FELHelpers'
 require_relative 'FELSuit'
+require_relative 'libsparse'
 
 # @example Routines (Send command and read data)
 #  1. Write (--> send | <-- recv)
@@ -204,6 +205,7 @@ class FELix
       @usb_in = device[0].endpoints.select { |e| e.direction == :in }[0]
       true
     else
+      @handle = nil
       false
     end
   end
@@ -358,9 +360,10 @@ class FELix
   # @param memory [String] data to write
   # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
+  # @param dontfinish do not set finish tag in `:fes` context
   # @raise [String] error name
   # @yieldparam [Integer] sent bytes
-  def write(address, memory, tags=[:none], mode=:fel)
+  def write(address, memory, tags=[:none], mode=:fel, dontfinish=false)
     raise FELError, "Memory not specifed" unless memory
     raise FELError, "Address not specifed" unless address
     total_len = memory.bytesize
@@ -383,7 +386,7 @@ class FELix
       end
       # At last chunk finish tag must be set
       request.flags |= AWTags[:finish] if mode == :fes &&
-        total_len <= FELIX_MAX_CHUNK
+        total_len <= FELIX_MAX_CHUNK && dontfinish == false
 
       data = send_request(request.to_binary_s)
       if data == nil
