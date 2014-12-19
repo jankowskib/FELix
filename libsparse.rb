@@ -63,18 +63,19 @@ end
 class SparseImage
 
   # Check sparse image validity
-  # @param filename [String] image path
+  # @param file [File] image handle
+  # @param offset [Integer] file offset
   # @raise [SparseError] if fail
-  def initialize(filename)
-    @file = filename
+  def initialize(data, offset = 0)
+    @file = data
     @chunks = []
-    File.open(@file) do |f|
-      @header = SparseImageHeader.read(f)
-      @header.total_chunks.times do
-        chunk = SparseImageChunk.read(f)
-        @chunks << chunk
-        f.seek(chunk.total_sz - @header.chunk_hdr_sz, IO::SEEK_CUR)
-      end
+    @offset = offset
+    @file.seek(@offset, IO::SEEK_SET)
+    @header = SparseImageHeader.read(@file)
+    @header.total_chunks.times do
+      chunk = SparseImageChunk.read(@file)
+      @chunks << chunk
+      @file.seek(chunk.total_sz - @header.chunk_hdr_sz, IO::SEEK_CUR)
     end
   rescue BinData::ValidityError => e
     raise SparseError, "Not a sparse file (#{e})"
@@ -84,26 +85,54 @@ class SparseImage
   # @param filename [String] image path
   def dump(filename)
     out = File.open(filename, "w")
-    File.open(@file) do |f|
-      f.seek(@header.file_hdr_sz, IO::SEEK_CUR)
-      @chunks.each do |c|
-        f.seek(@header.chunk_hdr_sz, IO::SEEK_CUR)
-        case c.chunk_type
-        when ChunkType[:raw]
-          out << f.read(c.total_sz - @header.chunk_hdr_sz)
-        when ChunkType[:fill]
-          num = f.read(4)
-          out << num * ((@header.blk_sz / 4) * c.chunk_sz)
-        when ChunkType[:crc32]
-          num = f.read(4)
-          puts "Checksum block: {#{d}}" %  num
-        when ChunkType[:dont_care]
-          out << "\0" * (c.chunk_sz * @header.blk_sz)
-        end
+    @file.seek(@offset, IO::SEEK_SET)
+    @file.seek(@header.file_hdr_sz, IO::SEEK_CUR)
+    @chunks.each do |c|
+      @file.seek(@header.chunk_hdr_sz, IO::SEEK_CUR)
+      case c.chunk_type
+      when ChunkType[:raw]
+        out << @file.read(c.total_sz - @header.chunk_hdr_sz)
+      when ChunkType[:fill]
+        num = @file.read(4)
+        out << num * ((@header.blk_sz / 4) * c.chunk_sz)
+      when ChunkType[:crc32]
+        num = @file.read(4)
+      when ChunkType[:dont_care]
+        out << "\0" * (c.chunk_sz * @header.blk_sz)
       end
     end
   ensure
     out.close
+  end
+
+  # Read chunks and yield data
+  # @yieldparam [String] binary data of chunk
+  # @yieldparam [TrueClass, FalseClass] true if its last chunk
+  def each_chunk
+    @file.seek(@offset, IO::SEEK_SET)
+    @file.seek(@header.file_hdr_sz, IO::SEEK_CUR)
+    @chunks.each_with_index do |c, idx|
+      @file.seek(@header.chunk_hdr_sz, IO::SEEK_CUR)
+      data = ""
+      case c.chunk_type
+      when ChunkType[:raw]
+        data << @file.read(c.total_sz - @header.chunk_hdr_sz)
+      when ChunkType[:fill]
+        num = @file.read(4)
+        data << num * ((@header.blk_sz / 4) * c.chunk_sz)
+      when ChunkType[:crc32]
+        num = @file.read(4)
+      when ChunkType[:dont_care]
+        data << "\0" * (c.chunk_sz * @header.blk_sz)
+        # @todo consider not adding null data at end of image
+      end
+      yield data, (idx == (@header.total_chunks - 1))
+    end
+  end
+
+  # Get size of unsparsed image
+  def get_final_size
+    @header.total_blks * @header.blk_sz
   end
 
 end

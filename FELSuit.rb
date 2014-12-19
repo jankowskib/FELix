@@ -73,12 +73,29 @@ class FELSuit < FELix
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
-      yield "Reading #{item.name}"
-      data = get_image_data(part)
-      # @todo decompress sparse image of system
-      yield "Writing #{item.name}"
-      write(item.address_low, data, :none, :fes) do |n|
-        yield "Writing #{item.name}", (n * 100) / data.bytesize
+      if item.name == "system"
+        yield "Reading #{item.name}"
+        sys_handle = get_image_handle(part)
+        sparse = SparseImage.new(sys_handle, part.off_len_low)
+        curr_add = item.address_low
+        # @todo
+        # 4096 % 512 == 0 so it shouldn't be a problem
+        # but 4096 / 65536 it is
+        written = 0
+        sparse.each_chunk do |data, finish|
+          yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) / sparse.get_final_size
+          write(curr_add, data, :none, :fes, finish)
+          curr_add+=data.bytesize / 512
+          written+=data.bytesize
+        end
+        sys_handle.close
+      else
+        yield "Reading #{item.name}"
+        data = get_image_data(part)
+        yield "Writing #{item.name}"
+        write(item.address_low, data, :none, :fes) do |n|
+          yield "Writing #{item.name}", (n * 100) / data.bytesize
+        end
       end
     end
     # 7. Disable NAND
@@ -137,6 +154,18 @@ class FELSuit < FELix
     data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
     data
     # @todo decrypt twofish
+  end
+
+  # Seeks to image position and get file handle
+  # @param item [AWImageItemV1, AWImageItemV3] item data
+  # @return [File] handle
+  # @raise [FELError] if failed
+  # @note Don't forget to close handle after
+  def get_image_handle(item)
+    raise FELError, "Item not exist" unless item
+    f = File.open(@image)
+    f.seek(item.off_len_low, IO::SEEK_CUR)
+    f
   end
 
   # Read header & image items information
