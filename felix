@@ -178,13 +178,15 @@ class FELix
   # Open device, and setup endpoints
   # @param device [LIBUSB::Device] a device
   def initialize(device)
-    raise FELError, "Unexcepted argument type: #{device.inspect}" unless device.
+    raise FELFatal, "Unexcepted argument type: #{device.inspect}" unless device.
       kind_of?(LIBUSB::Device)
     @handle = device.open
     #@handle.detach_kernel_driver(0)
     @handle.claim_interface(0)
     @usb_out = device.endpoints.select { |e| e.direction == :out }[0]
     @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
+  rescue => e
+    raise FELFatal, e.message
   end
 
   # Reconnect to currently connected device
@@ -849,9 +851,9 @@ end
 begin
   usb = LIBUSB::Context.new
   devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
-  raise FELError, "No device found in FEL mode!" if devices.empty?
+  raise FELFatal, "No device found in FEL mode!" if devices.empty?
   # If there's more than one device list and ask to select
-  raise FELError, "Found more than 1 device (use --device <number> parameter)" if
+  raise FELFatal, "Found more than 1 device (use --device <number> parameter)" if
     devices.size > 1 && $options[:device] == nil
 
   $options[:device] ||= 0
@@ -959,12 +961,14 @@ rescue FELError => e
   puts "[FAIL]".red unless $options[:verbose]
   puts "#{e.message}"
   $exit_code = FELIX_FAIL
+rescue FELFatal => e
+  puts "[FATAL]\t".red << "#{e.message}"
+  $exit_code = FELIX_FATAL
 rescue LIBUSB::ERROR_NOT_SUPPORTED
-  puts "[FAIL]".red
-  puts "You must install libusb filter on your usb device driver"
+  puts "[FATAL]\t".red << "You must install libusb filter on your usb device driver"
   $exit_code = FELIX_FAIL
 rescue => e
-  puts "[FATAL]".red
+  puts "[WTF]".red
   puts "#{e.message} at #{e.backtrace.join("\n")}"
   $exit_code = FELIX_FATAL
 ensure

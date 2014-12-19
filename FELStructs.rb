@@ -18,6 +18,10 @@
 class FELError < StandardError
 end
 
+# Fatal exception filter class
+class FELFatal < StandardError
+end
+
 class AWUSBRequest < BinData::Record # size 32
   string   :magic,     :length => 4, :initial_value => "AWUC"
   uint32le :tag,       :initial_value => 0
