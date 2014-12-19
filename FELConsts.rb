@@ -184,10 +184,3 @@ AWItemType = {
   :video                          => "VIDEO",
   :application                    => "APP"
 }
-
-#Sparse image chunk types
-ChunkType = {
-  :raw                            => 0xcac1,
-  :fill                           => 0xcac2,
-  :dont_care                      => 0xcac3
-}
