@@ -82,11 +82,12 @@ class FELSuit < FELix
         # 4096 % 512 == 0 so it shouldn't be a problem
         # but 4096 / 65536 it is
         written = 0
+        yield "Writing #{item.name}"
         sparse.each_chunk do |data, finish|
-          yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) / sparse.get_final_size
           write(curr_add, data, :none, :fes, finish)
           curr_add+=data.bytesize / 512
           written+=data.bytesize
+          yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) / sparse.get_final_size
         end
         sys_handle.close
       else
