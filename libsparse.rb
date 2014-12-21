@@ -85,21 +85,8 @@ class SparseImage
   # @param filename [String] image path
   def dump(filename)
     out = File.open(filename, "w")
-    @file.seek(@offset, IO::SEEK_SET)
-    @file.seek(@header.file_hdr_sz, IO::SEEK_CUR)
-    @chunks.each do |c|
-      @file.seek(@header.chunk_hdr_sz, IO::SEEK_CUR)
-      case c.chunk_type
-      when ChunkType[:raw]
-        out << @file.read(c.total_sz - @header.chunk_hdr_sz)
-      when ChunkType[:fill]
-        num = @file.read(4)
-        out << num * ((@header.blk_sz / 4) * c.chunk_sz)
-      when ChunkType[:crc32]
-        num = @file.read(4)
-      when ChunkType[:dont_care]
-        out << "\0" * (c.chunk_sz * @header.blk_sz)
-      end
+    each_chunk do |chunk|
+        out << data
     end
   ensure
     out.close
@@ -130,7 +117,7 @@ class SparseImage
     end
   end
 
-  # Get size of unsparsed image
+  # Get size of unsparsed image (bytes)
   def get_final_size
     @header.total_blks * @header.blk_sz
   end
