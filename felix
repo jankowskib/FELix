@@ -177,14 +177,16 @@ class FELix
 
   # Open device, and setup endpoints
   # @param device [LIBUSB::Device] a device
-  def initialize(device)
-    raise FELFatal, "Unexcepted argument type: #{device.inspect}" unless device.
+  def initialize(device = nil)
+    if device
+      raise FELFatal, "Unexcepted argument type: #{device.inspect}" unless device.
       kind_of?(LIBUSB::Device)
-    @handle = device.open
-    #@handle.detach_kernel_driver(0)
-    @handle.claim_interface(0)
-    @usb_out = device.endpoints.select { |e| e.direction == :out }[0]
-    @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
+      @handle = device.open
+      #@handle.detach_kernel_driver(0)
+      @handle.claim_interface(0)
+      @usb_out = device.endpoints.select { |e| e.direction == :out }[0]
+      @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
+    end
   rescue => e
     raise FELFatal, e.message
   end
@@ -730,6 +732,12 @@ begin
         end
         exit FELIX_SUCCESS
       end
+      opts.on("--image-extract image", String, "Extract item from LiveSuit" <<
+        "'s image. Use with --item") do |f|
+        $options[:action] = :extract
+        $options[:file] = f
+        $options[:dont_connect] = true
+      end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
           dl = File.read(f)
@@ -819,6 +827,10 @@ begin
       AWTags.keys.join(", ") << ")") do |t|
         $options[:tags] = t.map(&:to_sym) # Convert every value to symbol
       end
+      opts.on("--item name", String, "File from image to extract (without" <<
+      " the path)") do |it|
+        $options[:item] = it
+      end
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
         $options[:verbose] = true
       end
@@ -831,14 +843,16 @@ begin
   raise OptionParser::InvalidArgument, "Invalid tag. Please specify one or" <<
     " more of " << AWTags.keys.join(", ") unless ($options[:tags] - AWTags.
     keys).empty?
-  raise OptionParser::MissingArgument, "You must specify --address and --length!" if($options[:direction] == :read &&
-    ($options[:length] == nil || $options[:address] == nil) &&
-    [:read, :transmite].include?($options[:action]))
-  raise OptionParser::MissingArgument, "You must specify --address!" if($options[:direction] == :write &&
-     $options[:address] == nil && [:write, :transmite, :run].
-     include?($options[:action]))
+  raise OptionParser::MissingArgument, "You must specify --address and " <<
+    "--length!" if($options[:direction] == :read && ($options[:length] == nil ||
+    $options[:address] == nil) && [:read, :transmite].include?($options[:action]))
+  raise OptionParser::MissingArgument, "You must specify --address!" if
+    $options[:direction] == :write && $options[:address] == nil &&
+    [:write, :transmite, :run].include?($options[:action])
+  raise OptionParser::MissingArgument, "You must specify --item" if
+    $options[:action] == :extract && !$options[:item]
 rescue OptionParser::MissingArgument => e
-  puts "Missing argument (#{e}). Type FELix.rb --help to see usage"
+  puts "#{e.message.camelize}. Type FELix.rb --help to see usage"
   exit FELIX_FAIL
 rescue OptionParser::InvalidArgument
   puts "Invalid argument. Type FELix.rb --help to see usage"
@@ -849,22 +863,24 @@ rescue OptionParser::InvalidOption
 end
 
 begin
+  unless $options[:dont_connect]
   usb = LIBUSB::Context.new
-  devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
-  raise FELFatal, "No device found in FEL mode!" if devices.empty?
-  # If there's more than one device list and ask to select
-  raise FELFatal, "Found more than 1 device (use --device <number> parameter)" if
-    devices.size > 1 && $options[:device] == nil
+    devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
+    raise FELFatal, "No device found in FEL mode!" if devices.empty?
+    # If there's more than one device list and ask to select
+    raise FELFatal, "Found more than 1 device (use --device <number> parameter)" if
+      devices.size > 1 && $options[:device] == nil
 
-  $options[:device] ||= 0
+    $options[:device] ||= 0
 
-  dev = devices[$options[:device]]
-  print "* Connecting to device at port %d, FEL device %d@%d %x:%x\t" % [
-    dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
-    dev.idProduct]
-  fel = $options[:action] == :flash ? FELSuit.new(dev, $options[:file]) : FELix.
-    new(dev)
-  puts "[OK]".green
+    dev = devices[$options[:device]]
+    print "* Connecting to device at port %d, FEL device %d@%d %x:%x\t" % [
+      dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
+      dev.idProduct]
+  end
+  fel = [:flash, :extract].include?($options[:action]) ? FELSuit.new(dev,
+    $options[:file]) : FELix.new(dev)
+  puts "[OK]".green if dev
 
   case $options[:action]
   when :device_info # case for FEL_R_VERIFY_DEVICE
@@ -940,6 +956,17 @@ begin
   when :reboot
     print "* Rebooting".ljust(57) << "\t" unless $options[:verbose]
     fel.set_tool_mode(:usb_tool_update, :none)
+    puts "[OK]".green unless $options[:verbose]
+  when :extract
+    fn = "#{$options[:file]}_#{$options[:item]}"
+    print "* Extracting to #{fn}".ljust(57) << "\t" unless $options[:verbose]
+    item = fel.structure.item_by_file($options[:item])
+    raise FELError, "Item not found!" unless item
+    File.open(fn, "w") do |f|
+      fel.get_image_data(item) do |d|
+        f.write(d)
+      end
+    end
     puts "[OK]".green unless $options[:verbose]
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
