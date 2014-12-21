@@ -2,4 +2,5 @@
 --markup markdown
 --charset utf-8
 'FEL*.rb'
-
+felix
+libsparse.rb
