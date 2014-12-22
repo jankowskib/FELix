@@ -803,6 +803,10 @@ begin
          $options[:file] = f
       end
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
+      opts.on("--tofes img", String, "Switch device into FES mode") do |f|
+        $options[:action] = :boot2fes
+        $options[:file] = f
+      end
 
       opts.separator "\nOptions:"
       opts.on("-d", "--device num", Integer,
@@ -879,8 +883,8 @@ begin
       dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
       dev.idProduct]
   end
-  fel = [:flash, :extract].include?($options[:action]) ? FELSuit.new(dev,
-    $options[:file]) : FELix.new(dev)
+  fel = [:flash, :extract, :boot2fes].include?($options[:action]) ? FELSuit.new(
+  dev, $options[:file]) : FELix.new(dev)
   puts "[OK]".green if dev
 
   case $options[:action]
@@ -981,6 +985,17 @@ begin
       end
     end
       puts "[OK]".green
+  when :boot2fes
+    print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
+    info = fel.get_device_info
+    raise FELError, "Device already in FES mode" if info.mode == AWDeviceMode[:fes]
+    puts "[OK]".ljust(8).green unless $options[:verbose]
+    print "* Booting to FES".ljust(57) << "\t" unless $options[:verbose]
+    uboot = fel.get_image_data(fel.structure.item_by_file("u-boot.fex"))
+    fes = fel.get_image_data(fel.structure.item_by_file("fes1.fex"))
+    raise FELError, "Failed to get required items from image" unless uboot || fes
+    fel.boot_to_fes(fes, uboot)
+    puts "[OK]".ljust(8).green unless $options[:verbose]
   else
     raise FELError, "No action specified"
   end
