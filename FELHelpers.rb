@@ -247,13 +247,12 @@ class FELHelpers
 
     # Decrypt Livesuit image header using RC6 algorithm
     # @param data [String] encrypted binary data
-    # @param key [String] encryption key
+    # @param key [Symbol] encryption key (:header, :item, :data)
     # @return decryped binary data
     def decrypt(data, key)
-      rc6 = Crypt::RC6.new(key)
       out = ""
       data.scan(/.{16}/m) do |m|
-        out << rc6.decrypt_block(m)
+        out << RC6[key].decrypt_block(m)
       end
       out
     end
@@ -268,7 +267,7 @@ class FELHelpers
         encrypted = true
       end
       print "Decrypting..." if encrypted
-      img = decrypt(img, FELIX_HEADER_KEY) if encrypted
+      img = decrypt(img, :header) if encrypted
       raise FELError, "Unrecognized image format" if img.byteslice(0, 8) !=
         "IMAGEWTY"
       # @todo read header version
@@ -278,7 +277,7 @@ class FELHelpers
       for i in 1..item_count
         print "\rDecrypting...: #{i}/#{item_count}".green if encrypted
         item = File.read(file, 1024, (i * 1024)) # Read item
-        item = decrypt(item, FELIX_ITEM_KEY) if encrypted
+        item = decrypt(item, :item) if encrypted
         img << item
       end
       File.open("decrypted.fex", "w") { |f| f.write(img) }

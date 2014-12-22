@@ -18,9 +18,12 @@ FELIX_VERSION = "1.0 RC1"
 
 #Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
-FELIX_HEADER_KEY = "\0" * 31 << "i"
-FELIX_ITEM_KEY   = "\1" * 31 << "m"
-FELIX_DATA_KEY   = "\2" * 31 << "g"
+
+RC6 = {
+  :header => Crypt::RC6.new("\0" * 31 << "i"),
+  :item   => Crypt::RC6.new("\1" * 31 << "m"),
+  :data   => Crypt::RC6.new("\2" * 31 << "g")
+}
 
 FELIX_SUCCESS = 0
 FELIX_FAIL = 1
