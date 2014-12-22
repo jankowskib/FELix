@@ -281,6 +281,13 @@ class AWMBR < BinData::Record
     end
   end
 
+  # Find a partition data by name
+  # @param name [String] partition name (e.g. system, boot, data)
+  # @return [AWSunxiLegacyPartition, AWSunxiPartition] a partition if found
+  def part_by_name(name)
+    mbr.part.select { |i| i.name == name }.first
+  end
+
 end
 
 # Item structure nested in AWDownloadInfo (72 bytes)
