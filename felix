@@ -769,8 +769,8 @@ begin
         $options[:action] = :run
       end
       opts.on("--read file", String, "Read memory to file. Use with --address" <<
-        ", --length, --context. In FES mode you can additionally specify " <<
-        "--tags") do |f|
+        ", --length, --context. In FES mode you can additionally specify" <<
+        " --tags, --item (other arguments are discarded then)") do |f|
          $options[:action] = :read
          $options[:file] = f
        end
@@ -834,7 +834,7 @@ begin
         $options[:tags] = t.map(&:to_sym) # Convert every value to symbol
       end
       opts.on("--item name", String, "File from image to extract (without" <<
-      " the path)") do |it|
+      " the path) or partition name (e.g. boot, system)") do |it|
         $options[:item] = it
       end
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
@@ -850,8 +850,9 @@ begin
     " more of " << AWTags.keys.join(", ") unless ($options[:tags] - AWTags.
     keys).empty?
   raise OptionParser::MissingArgument, "You must specify --address and " <<
-    "--length!" if($options[:direction] == :read && ($options[:length] == nil ||
-    $options[:address] == nil) && [:read, :transmite].include?($options[:action]))
+    "--length or --item!" if($options[:direction] == :read && !$options[:item] &&
+    ($options[:length] == nil || $options[:address] == nil) && [:read, :transmite].
+    include?($options[:action]))
   raise OptionParser::MissingArgument, "You must specify --address!" if
     $options[:direction] == :write && $options[:address] == nil &&
     [:write, :transmite, :run].include?($options[:action])
@@ -920,11 +921,29 @@ begin
     fel.set_storage_state($options[:how])
     puts "[OK]".green unless $options[:verbose]
   when :read
-    print "* #{$options[:mode]}: Reading data\t" unless $options[:verbose]
+    if $options[:item]
+      # Read all data from MBR
+      print "* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+      data = fel.read(0, 16384, :none, :fes) do |b|
+        print "\r* Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+        percent = (b * 100) / 16384
+        print "#{percent}%".ljust(4).light_blue unless percent == 100
+      end
+      mbr = AWMBR.read(data)
+      part = mbr.part_by_name($options[:item])
+      raise FELError, "Partition not found in boot record" unless part
+      puts "[OK]".green unless $options[:verbose]
+      $options[:address] = part.address_low
+      $options[:length] = part.lenlo * FELIX_SECTOR
+      $options[:mode] = :fes
+    end
+    print "* #{$options[:mode]}: Reading data".ljust(57) << "\t" unless $options[:verbose]
     data = fel.read($options[:address], $options[:length], $options[:tags],
       $options[:mode]) do |b|
-        print "\r* #{$options[:mode]}: Reading data (" <<
-        "#{b}/#{$options[:length]} bytes)\t" unless $options[:verbose]
+        print ("\r* #{$options[:mode]}: Reading data (" <<
+        "#{b}/#{$options[:length]} bytes)").ljust(57) << "\t" unless $options[:verbose]
+        percent = (b * 100) / $options[:length]
+        print "#{percent}%".ljust(4).light_blue unless percent == 100
     end
     File.open($options[:file], "w") { |f| f.write(data) }
     puts "[OK]".green unless $options[:verbose]

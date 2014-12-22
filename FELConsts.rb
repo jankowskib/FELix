@@ -18,6 +18,8 @@ FELIX_VERSION = "1.0 RC1"
 
 #Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
+#Sunxi NAND sector size
+FELIX_SECTOR = 512
 
 RC6 = {
   :header => Crypt::RC6.new("\0" * 31 << "i"),
