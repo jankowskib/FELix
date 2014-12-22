@@ -724,21 +724,6 @@ begin
         end
         exit FELIX_SUCCESS
       end
-      opts.on("--image-info image", String, "Show LiveSuit's image info") do |f|
-        begin
-          FELHelpers.show_image_info(f)
-        rescue Errno::ENOENT
-          puts "File not found!"
-          exit FELIX_FAIL
-        end
-        exit FELIX_SUCCESS
-      end
-      opts.on("--image-extract image", String, "Extract item from LiveSuit" <<
-        "'s image. Use with --item") do |f|
-        $options[:action] = :extract
-        $options[:file] = f
-        $options[:dont_connect] = true
-      end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
           dl = File.read(f)
@@ -749,6 +734,21 @@ begin
         end
         exit FELIX_SUCCESS
       end
+      opts.on("--image-info image", String, "Show LiveSuit's image info") do |f|
+        begin
+          FELHelpers.show_image_info(f)
+        rescue Errno::ENOENT
+          puts "File not found!"
+          exit FELIX_FAIL
+        end
+        exit FELIX_SUCCESS
+      end
+      opts.on("--image-extract image", String, "Extract an item from Live" <<
+        "Suit's image. Use with --item") do |f|
+        $options[:action] = :extract
+        $options[:file] = f
+        $options[:dont_connect] = true
+      end
       opts.on("--version", "Show version") do
         puts FELIX_VERSION
         exit FELIX_SUCCESS
@@ -757,6 +757,11 @@ begin
       opts.separator "* FEL/FES mode".light_blue.underline
       opts.on("--flash image", String, "Flash Livesuit image") do |f|
         $options[:action] = :flash
+        $options[:file] = f
+      end
+      opts.on("--tofes image", String, "Switch device into FES mode using" <<
+      " fes1.fex and u-boot.fex from selected firmware image") do |f|
+        $options[:action] = :boot2fes
         $options[:file] = f
       end
       opts.on("--info", "Get device info") { $options[:action] = :device_info }
@@ -803,12 +808,8 @@ begin
          $options[:file] = f
       end
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
-      opts.on("--tofes img", String, "Switch device into FES mode") do |f|
-        $options[:action] = :boot2fes
-        $options[:file] = f
-      end
 
-      opts.separator "\nOptions:"
+      opts.separator "\n* Options".light_blue.underline
       opts.on("-d", "--device num", Integer,
       "Select device number (default 0)") { |id| $options[:device] = id }
 
@@ -901,19 +902,21 @@ begin
       end
     end
   when :format
-    print "* Formating NAND (it may take ~60 seconds)\t" unless $options[:verbose]
+    print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
+      $options[:verbose]
     mbr = File.read($options[:file])
     status = fel.write_mbr(mbr, true)
     raise FELError, "Format failed (#{status.crc})" if status.crc != 0
     puts "[OK]".green unless $options[:verbose]
   when :mbr
-    print "* Writing MBR\t" unless $options[:verbose]
+    print "* Writing MBR".ljust(57) << "\t" unless $options[:verbose]
     mbr = File.read($options[:file])
     status = fel.write_mbr(mbr, false)
     raise FELError, "Write failed (#{status.crc})" if status.crc != 0
     puts "[OK]".green unless $options[:verbose]
   when :storage
-    print "* Setting flash state to #{$options[:how]}\t" unless $options[:verbose]
+    print "* Setting flash state to #{$options[:how]}".ljust(57) << "\t" unless
+      $options[:verbose]
     fel.set_storage_state($options[:how])
     puts "[OK]".green unless $options[:verbose]
   when :read
@@ -935,26 +938,26 @@ begin
     end
     puts "[OK]".green unless $options[:verbose]
   when :run
-    print "* #{$options[:mode]}: Executing code @ 0x%08x\t" %
-      $options[:address] unless $options[:verbose]
+    print ("* #{$options[:mode]}: Executing code @ 0x%08x" %
+      $options[:address]).ljust(57) << "\t" unless $options[:verbose]
     fel.run($options[:address], $options[:mode])
     puts "[OK]".green unless $options[:verbose]
   when :request
-    print "* Sending a request\t" unless $options[:verbose]
+    print "* Sending a request".ljust(57) << "\t" unless $options[:verbose]
     fel.request($options[:request])
     puts "[OK]".green unless $options[:verbose]
   when :transmite
     if $options[:direction] == :write
       print "* Reading file" unless $options[:verbose]
       data = File.read($options[:file])
-      print " (#{data.bytesize} bytes)\t" unless $options[:verbose]
+      print " (#{data.bytesize} bytes)".ljust(57) << "\t" unless $options[:verbose]
     end
     data ||= nil
     data = fel.transmite($options[:direction], :address => $options[:address],
       :length => $options[:length], :memory => data, :media_index =>
       $options[:index])
     if $options[:direction] == :read && data
-      print "\r* Writing data (#{data.length} bytes )\t"
+      print "\r* Writing data (#{data.length} bytes )".ljust(57) << "\t"
       File.open($options[:file], "w") { |f| f.write(data) }
     end
     puts "[OK]".green unless $options[:verbose]
