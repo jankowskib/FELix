@@ -75,30 +75,62 @@ class FELSuit < FELix
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
+      yield "Flashing #{item.name}"
+      curr_add = item.address_low
       if item.name == "system"
-        yield "Reading #{item.name}"
         sys_handle = get_image_handle(part)
         sparse = SparseImage.new(sys_handle, part.off_len_low)
-        curr_add = item.address_low
         # @todo
         # 4096 % 512 == 0 so it shouldn't be a problem
         # but 4096 / 65536 it is
-        written = 0
-        yield "Writing #{item.name}"
-        sparse.each_chunk do |data, finish|
-          write(curr_add, data, :none, :fes, finish)
-          curr_add+=data.bytesize / 512
-          written+=data.bytesize
-          yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) / sparse.get_final_size
+        queue = Queue.new
+        threads = []
+        threads << Thread.new do
+          i = 0
+          sparse.each_chunk do |data|
+            i+=1
+            yield ("Decompressing #{item.name}"), (i * 100) / sparse.count_chunks
+            queue << data
+          end
+          sys_handle.close
         end
-        sys_handle.close
+        threads << Thread.new do
+          written = 0
+          while written < part.data_len_low
+            data = queue.pop
+            written+=data.bytesize
+            write(curr_add, data, :none, :fes, written < part.data_len_low)
+            curr_add+=data.bytesize / 512
+            yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) /
+              sparse.get_final_size
+          end
+        end
+        threads.each {|t| t.join}
       else
-        yield "Reading #{item.name}"
-        data = get_image_data(part)
-        yield "Writing #{item.name}"
-        write(item.address_low, data, :none, :fes) do |n|
-          yield "Writing #{item.name}", (n * 100) / data.bytesize
+        queue = Queue.new
+        threads = []
+        # reader
+        threads << Thread.new do
+          read = 0
+          get_image_data(part) do |data|
+            read+=data.bytesize
+            yield "Reading #{item.name}", (read * 100) / part.data_len_low
+            queue << data
+          end
         end
+        # writter
+        threads << Thread.new do
+          written = 0
+          while written < part.data_len_low
+            data = queue.pop
+            written+=data.bytesize
+            write(curr_add, data, :none, :fes, written < part.data_len_low) do
+              yield "Writing #{item.name}", (written * 100) / part.data_len_low
+            end
+            curr_add+=data.bytesize / 512
+          end
+        end
+        threads.each {|t| t.join}
       end
     end
     # 7. Disable NAND
@@ -140,7 +172,7 @@ class FELSuit < FELix
   def encrypted?
     img = File.read(@image, 16) # Read block
     return false if img.byteslice(0, 8) == "IMAGEWTY"
-    img = FELHelpers.decrypt(img, FELIX_HEADER_KEY) if img.byteslice(0, 8) !=
+    img = FELHelpers.decrypt(img, :header) if img.byteslice(0, 8) !=
     "IMAGEWTY"
     return true if img.byteslice(0, 8) == "IMAGEWTY"
     raise FELError, "Failed to decrypt image"
@@ -148,32 +180,36 @@ class FELSuit < FELix
 
   # Read item data from LiveSuit image
   # @param item [AWImageItemV1, AWImageItemV3] item data
+  # @param chunk [Integer] size of yielded chunk
+  # @param length [Integer] how much data to read
+  # @param offset [Integer] where to start reading of data
   # @return [String] binary data if no block given
-  # @yieldparam [String] max #FELIX_MAX_CHUNK of data
+  # @yieldparam [String] data
   # @raise [FELError] if read failed
-  def get_image_data(item)
+  def get_image_data(item, chunk = FELIX_MAX_CHUNK, length = item.data_len_low,
+    offset = 0)
     raise FELError, "Item not exist" unless item
     if block_given?
       File.open(@image) do |f|
-        f.seek(item.off_len_low, IO::SEEK_CUR)
+        f.seek(item.off_len_low + offset, IO::SEEK_CUR)
         read = 0
-        while data = f.read(FELIX_MAX_CHUNK)
-          data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
+        while data = f.read(chunk)
+          data = FELHelpers.decrypt(data, :data) if @encrypted
           read+=data.bytesize
-          left = read - item.data_len_low
+          left = read - length
           if left > 0
             yield data.byteslice(0, data.bytesize - left)
             break
           else
             yield data
-            break if read == item.data_len_low
+            break if read == length
           end
         end
       end
     else
-      data = File.read(@image, item.data_len_low,item.off_len_low)
+      data = File.read(@image, length, item.off_len_low + offset)
       raise FELError, "Cannot read data" unless data
-      data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
+      data = FELHelpers.decrypt(data, :data) if @encrypted
       data
       # @todo decrypt twofish
     end
@@ -197,12 +233,12 @@ class FELSuit < FELix
     if @encrypted
       File.open(@image) do |f|
         header = f.read(1024)
-        header = FELHelpers.decrypt(header, FELIX_HEADER_KEY)
+        header = FELHelpers.decrypt(header, :header)
         img_version = header[8, 4].unpack("V").first
         item_count = header[img_version == 0x100 ? 0x38 : 0x3C, 4].
           unpack("V").first
         items = f.read(item_count * 1024)
-        header << FELHelpers.decrypt(items, FELIX_ITEM_KEY)
+        header << FELHelpers.decrypt(items, :item)
         AWImage.read(header)
       end
     else
