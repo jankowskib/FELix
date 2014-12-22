@@ -94,7 +94,6 @@ class SparseImage
 
   # Read chunks and yield data
   # @yieldparam [String] binary data of chunk
-  # @yieldparam [TrueClass, FalseClass] true if its last chunk
   def each_chunk
     @file.seek(@offset, IO::SEEK_SET)
     @file.seek(@header.file_hdr_sz, IO::SEEK_CUR)
@@ -113,7 +112,7 @@ class SparseImage
         data << "\0" * (c.chunk_sz * @header.blk_sz)
         # @todo consider not adding null data at end of image
       end
-      yield data, (idx == (@header.total_chunks - 1))
+      yield data
     end
   end
 
@@ -126,5 +125,5 @@ class SparseImage
   def count_chunks
     @header.total_chunks
   end
-  
+
 end

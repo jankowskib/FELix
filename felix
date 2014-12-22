@@ -887,7 +887,7 @@ begin
   when :device_info # case for FEL_R_VERIFY_DEVICE
     info = fel.get_device_info
     info.each_pair do |k, v|
-      print "%-40s" % k.to_s.yellow
+      print "  #{k}".ljust(25).yellow
       case k
       when :board then puts FELHelpers.board_id_to_str(v)
       when :mode then puts AWDeviceMode.key(v)
@@ -972,7 +972,7 @@ begin
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
-      puts "[OK]".green unless $options[:verbose] || percent
+      puts "[OK]".ljust(8).green unless $options[:verbose] || percent
       if percent
         print "\r* #{s}".ljust(57) << "\t"
         print "#{percent}%".ljust(4).light_blue unless percent == 100

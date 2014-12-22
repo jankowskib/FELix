@@ -59,7 +59,7 @@ class FELSuit < FELix
     end
     # 4. Write MBR
     # @todo add format parameter
-    yield "Writing new paratition table"
+    yield "Writing new paratition table" if block_given?
     raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
     mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
     dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
@@ -67,7 +67,7 @@ class FELSuit < FELix
     status = write_mbr(mbr, false)
     raise FELError, "Cannot flash new partition table" if status.crc != 0
     # 5. Enable NAND
-    yield "Attaching NAND driver"
+    yield "Attaching NAND driver" if block_given?
     set_storage_state(:on)
     # 6. Write partitions
     dlinfo.item.each do |item|
@@ -75,7 +75,7 @@ class FELSuit < FELix
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
-      yield "Flashing #{item.name}"
+      yield "Flashing #{item.name}" if block_given?
       curr_add = item.address_low
       if item.name == "system"
         sys_handle = get_image_handle(part)
@@ -89,7 +89,8 @@ class FELSuit < FELix
           i = 0
           sparse.each_chunk do |data|
             i+=1
-            yield ("Decompressing #{item.name}"), (i * 100) / sparse.count_chunks
+            yield ("Decompressing #{item.name}"), (i * 100) / sparse.
+              count_chunks if block_given?
             queue << data
           end
           sys_handle.close
@@ -102,8 +103,9 @@ class FELSuit < FELix
             write(curr_add, data, :none, :fes, written < part.data_len_low)
             curr_add+=data.bytesize / 512
             yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) /
-              sparse.get_final_size
+              sparse.get_final_size if block_given?
           end
+          yield "Writing #{item.name}", 100 if block_given?
         end
         threads.each {|t| t.join}
       else
@@ -114,7 +116,8 @@ class FELSuit < FELix
           read = 0
           get_image_data(part) do |data|
             read+=data.bytesize
-            yield "Reading #{item.name}", (read * 100) / part.data_len_low
+            yield "Reading #{item.name}", (read * 100) / part.
+              data_len_low if block_given?
             queue << data
           end
         end
@@ -125,32 +128,34 @@ class FELSuit < FELix
             data = queue.pop
             written+=data.bytesize
             write(curr_add, data, :none, :fes, written < part.data_len_low) do
-              yield "Writing #{item.name}", (written * 100) / part.data_len_low
+              yield "Writing #{item.name}", (written * 100) / part.
+                data_len_low if block_given?
             end
             curr_add+=data.bytesize / 512
           end
+          yield "Writing #{item.name}", 100 if block_given?
         end
         threads.each {|t| t.join}
       end
     end
     # 7. Disable NAND
-    yield "Detaching NAND driver"
+    yield "Detaching NAND driver" if block_given?
     set_storage_state(:off)
     # 8. Write u-boot
-    yield "Writing u-boot"
+    yield "Writing u-boot" if block_given?
     write(0, uboot, :uboot, :fes) do |n|
-      yield "Writing u-boot", (n * 100) / uboot.bytesize
+      yield "Writing u-boot", (n * 100) / uboot.bytesize if block_given?
     end
     # 9. Write boot0
     boot0 = get_image_data(@structure.item_by_file("boot0_nand.fex"))
-    yield "Writing boot0"
+    yield "Writing boot0" if block_given?
     write(0, boot0, :boot0, :fes) do |n|
-      yield "Writing boot0", (n * 100) / boot0.bytesize
+      yield "Writing boot0", (n * 100) / boot0.bytesize if block_given?
     end
     # 10. Reboot
-    yield "Rebooting"
+    yield "Rebooting" if block_given?
     set_tool_mode(:usb_tool_update, :none)
-    yield "Finished"
+    yield "Finished" if block_given?
   end
 
   # Download egon, uboot and run code in hope we boot to fes
