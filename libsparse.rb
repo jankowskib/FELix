@@ -122,4 +122,9 @@ class SparseImage
     @header.total_blks * @header.blk_sz
   end
 
+  # Get number of chunks
+  def count_chunks
+    @header.total_chunks
+  end
+  
 end
