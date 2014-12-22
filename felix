@@ -334,12 +334,12 @@ class FELix
 
       output = recv_request(request.len)
 
-      # Rescue if we received AWUSBResponse
-      output = recv_request(request.len) if output.bytesize !=
-       request.len && output.bytesize == 13
-      # Rescue if we received AWFELStatusResponse
-      output = recv_request(request.len) if output.bytesize !=
-       request.len && output.bytesize == 8
+      # # Rescue if we received AWUSBResponse
+      # output = recv_request(request.len) if output.bytesize !=
+      #  request.len && output.bytesize == 13
+      # # Rescue if we received AWFELStatusResponse
+      # output = recv_request(request.len) if output.bytesize !=
+      #  request.len && output.bytesize == 8
       raise FELError, "Data size mismatch (data len #{output.bytesize}" <<
         " != #{request.len})" if output.bytesize != request.len
       status = recv_request(8)
