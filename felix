@@ -22,6 +22,7 @@ require 'libusb'
 require 'bindata'
 require 'crc32'
 require 'crypt/rc6'
+require 'thread'
 
 require_relative 'FELConsts'
 require_relative 'FELStructs'
@@ -963,7 +964,7 @@ begin
     item = fel.structure.item_by_file($options[:item])
     raise FELError, "Item not found!" unless item
     File.open(fn, "w") do |f|
-      fel.get_image_data(item) do |d|
+      fel.get_image_data(item, 8192) do |d|
         f.write(d)
       end
     end
@@ -974,7 +975,7 @@ begin
       puts "[OK]".green unless $options[:verbose] || percent
       if percent
         print "\r* #{s}".ljust(57) << "\t"
-        print "#{percent}%".light_blue unless percent == 100
+        print "#{percent}%".ljust(4).light_blue unless percent == 100
       else
         print "* #{s}".ljust(57) << "\t"
       end
