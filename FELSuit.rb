@@ -20,6 +20,8 @@ end
 # Contains methods to emulate LiveSuit
 class FELSuit < FELix
 
+  attr_reader :structure
+
   # Initialize device and check image file
   # @param device [LIBUSB::Device] a device
   # @param file [String] LiveSuit image
@@ -29,9 +31,6 @@ class FELSuit < FELix
     raise FELError, "Image not found!" unless File.exist?(@image)
     @encrypted = encrypted?
     @structure = fetch_image_structure
-    raise FELError, "Flashing old images is not supported " <<
-      "yet!" unless @structure.item_by_file("u-boot.fex") && @structure.
-      item_by_file("fes1.fex")
   end
 
   # Flash image to the device
@@ -39,6 +38,9 @@ class FELSuit < FELix
   # @yieldparam [String] status
   # @yieldparam [Integer] Percentage status if there's active transfer
   def flash
+    raise FELError, "Flashing old images is not supported " <<
+      "yet!" unless @structure.item_by_file("u-boot.fex") && @structure.
+      item_by_file("fes1.fex")
     # 1. Let's check device mode
     info = get_device_info
     raise FELError, "Failed to get device info. Try to reboot!" unless info
@@ -146,15 +148,35 @@ class FELSuit < FELix
 
   # Read item data from LiveSuit image
   # @param item [AWImageItemV1, AWImageItemV3] item data
-  # @return [String] binary data
+  # @return [String] binary data if no block given
+  # @yieldparam [String] max #FELIX_MAX_CHUNK of data
   # @raise [FELError] if read failed
   def get_image_data(item)
     raise FELError, "Item not exist" unless item
-    data = File.read(@image, item.data_len_low,item.off_len_low)
-    raise FELError, "Cannot read data" unless data
-    data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
-    data
-    # @todo decrypt twofish
+    if block_given?
+      File.open(@image) do |f|
+        f.seek(item.off_len_low, IO::SEEK_CUR)
+        read = 0
+        while data = f.read(FELIX_MAX_CHUNK)
+          data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
+          read+=data.bytesize
+          left = read - item.data_len_low
+          if left > 0
+            yield data.byteslice(0, data.bytesize - left)
+            break
+          else
+            yield data
+            break if read == item.data_len_low
+          end
+        end
+      end
+    else
+      data = File.read(@image, item.data_len_low,item.off_len_low)
+      raise FELError, "Cannot read data" unless data
+      data = FELHelpers.decrypt(data, FELIX_DATA_KEY) if @encrypted
+      data
+      # @todo decrypt twofish
+    end
   end
 
   # Seeks to image position and get file handle
