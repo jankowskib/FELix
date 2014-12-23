@@ -14,7 +14,7 @@
 #   limitations under the License.
 #
 
-FELIX_VERSION = "1.0 RC1"
+FELIX_VERSION = "1.0 RC2"
 
 #Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
