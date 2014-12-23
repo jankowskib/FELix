@@ -183,6 +183,12 @@ class FELSuit < FELix
     raise FELError, "Failed to decrypt image"
   end
 
+  # Check image format
+  def legacy?
+    not (@structure.item_by_file("u-boot.fex") && @structure.item_by_file(
+      "fes1.fex"))
+  end
+
   # Read item data from LiveSuit image
   # @param item [AWImageItemV1, AWImageItemV3] item data
   # @param chunk [Integer] size of yielded chunk
