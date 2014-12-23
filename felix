@@ -776,7 +776,7 @@ begin
        end
       opts.on("--write file", String, "Write file to memory. Use with" <<
         " --address, --context. In FES mode you can additionally specify " <<
-        "--tags") do |f|
+        "--tags, --item (other arguments are discarded then)") do |f|
          $options[:action] = :write
          $options[:file] = f
       end
@@ -854,7 +854,7 @@ begin
     ($options[:length] == nil || $options[:address] == nil) && [:read, :transmite].
     include?($options[:action]))
   raise OptionParser::MissingArgument, "You must specify --address!" if
-    $options[:direction] == :write && $options[:address] == nil &&
+    $options[:direction] == :write && !$options[:item] && !$options[:address] &&
     [:write, :transmite, :run].include?($options[:action])
   raise OptionParser::MissingArgument, "You must specify --item" if
     $options[:action] == :extract && !$options[:item]
@@ -948,12 +948,33 @@ begin
     File.open($options[:file], "w") { |f| f.write(data) }
     puts "[OK]".green unless $options[:verbose]
   when :write
-    print "* #{$options[:mode]}: Reading file" unless $options[:verbose]
-    data = File.read($options[:file])
-    print " (#{data.bytesize} bytes)\t" unless $options[:verbose]
-    fel.write($options[:address], data, $options[:tags], $options[:mode]) do |b|
-      print "\r* #{$options[:mode]}: Writing data (" <<
-      "#{b}/#{data.bytesize} bytes)\t" unless $options[:verbose]
+    file = File.read($options[:file])
+    print ("* #{$options[:mode]}: Read file (#{file.bytesize} bytes" <<
+    ")").ljust(57) << "\t" unless $options[:verbose]
+    puts "[OK]".green unless $options[:verbose]
+    if $options[:item]
+      # Read all data from MBR
+      print "* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+      data = fel.read(0, 16384, :none, :fes) do |b|
+        print "\r* Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+        percent = (b * 100) / 16384
+        print "#{percent}%".ljust(4).light_blue unless percent == 100
+      end
+      mbr = AWMBR.read(data)
+      part = mbr.part_by_name($options[:item])
+      raise FELError, "Partition not found in boot record" unless part
+      puts "[OK]".green unless $options[:verbose]
+      $options[:address] = part.address_low
+      real_len = part.lenlo * FELIX_SECTOR
+      raise FELError, "File is too big (partition size is " <<
+        "#{real_len})" if file.bytesize > real_len
+      $options[:mode] = :fes
+    end
+    fel.write($options[:address], file, $options[:tags], $options[:mode]) do |b|
+      print ("\r* #{$options[:mode]}: Writing data (" <<
+      "#{b}/#{file.bytesize} bytes)").ljust(57) << "\t" unless $options[:verbose]
+      percent = (b * 100) / file.bytesize
+      print "#{percent}%".ljust(4).light_blue unless percent == 100
     end
     puts "[OK]".green unless $options[:verbose]
   when :run
