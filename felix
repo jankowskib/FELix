@@ -1040,7 +1040,7 @@ begin
     fel.boot_to_fes(fes, uboot)
     puts "[OK]".ljust(8).green unless $options[:verbose]
   else
-    raise FELError, "No action specified"
+    raise FELFatal, "No action specified"
   end
 
 rescue FELError => e
