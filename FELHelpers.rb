@@ -280,7 +280,6 @@ class FELHelpers
         item = decrypt(item, :item) if encrypted
         img << item
       end
-      File.open("decrypted.fex", "w") { |f| f.write(img) }
       puts if encrypted
       puts AWImage.read(img).inspect
     end
