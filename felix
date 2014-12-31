@@ -1022,7 +1022,7 @@ begin
       puts "[OK]".ljust(8).green unless $options[:verbose] || percent
       if percent
         print "\r* #{s}".ljust(57) << "\t"
-        print "#{percent}%".ljust(4).light_blue unless percent == 100
+        print "#{percent}%".ljust(8).light_blue unless percent == 100
       else
         print "* #{s}".ljust(57) << "\t"
       end
