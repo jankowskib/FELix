@@ -100,10 +100,11 @@ class FELSuit < FELix
           while written < part.data_len_low
             data = queue.pop
             written+=data.bytesize
-            write(curr_add, data, :none, :fes, written < part.data_len_low)
+            write(curr_add, data, :none, :fes, written < part.data_len_low) do |ch|
+              yield ("Writing #{item.name} @ 0x%08x" % (curr_add + (ch/512))), ((written + ch) * 100) /
+                sparse.get_final_size if block_given?
+            end
             curr_add+=data.bytesize / 512
-            yield ("Writing #{item.name} @ 0x%08x" % curr_add), (written * 100) /
-              sparse.get_final_size if block_given?
           end
           yield "Writing #{item.name}", 100 if block_given?
         end
