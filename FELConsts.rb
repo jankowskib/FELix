@@ -91,7 +91,7 @@ AWUBootWorkMode = {
   :usb_product                     => 0x10, # FES mode
   :card_product                    => 0x11, # SD-card flash
   :usb_debug                       => 0x12, # FES mode with debug
-  :usb_update                      => 0x20, # USB upgrade?
+  :usb_update                      => 0x20, # USB upgrade (automatically inits nand!)
   :outer_update                    => 0x21  # external disk upgrade
 }
 
