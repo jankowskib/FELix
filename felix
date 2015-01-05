@@ -23,6 +23,7 @@ require 'bindata'
 require 'crc32'
 require 'crypt/rc6'
 require 'thread'
+require 'inifile'
 
 require_relative 'FELConsts'
 require_relative 'FELStructs'
