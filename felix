@@ -1019,12 +1019,14 @@ begin
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
-      puts "[OK]".ljust(8).green unless $options[:verbose] || percent
+      puts "[OK]".ljust(4).green unless $options[:verbose] || percent
       if percent
-        print "\r* #{s}".ljust(57) << "\t"
-        print "#{percent}%".ljust(8).light_blue unless percent == 100
+        str = ""
+        str << "\r* #{s}".ljust(57) << "\t" unless $options[:verbose]
+        str << "#{percent}%".ljust(4).light_blue if !$options[:verbose] && percent < 100
+        print str
       else
-        print "* #{s}".ljust(57) << "\t"
+        print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
       end
     end
       puts "[OK]".green
@@ -1032,13 +1034,13 @@ begin
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
     info = fel.get_device_info
     raise FELError, "Device already in FES mode" if info.mode == AWDeviceMode[:fes]
-    puts "[OK]".ljust(8).green unless $options[:verbose]
+    puts "[OK]".ljust(4).green unless $options[:verbose]
     print "* Booting to FES".ljust(57) << "\t" unless $options[:verbose]
     uboot = fel.get_image_data(fel.structure.item_by_file("u-boot.fex"))
     fes = fel.get_image_data(fel.structure.item_by_file("fes1.fex"))
     raise FELError, "Failed to get required items from image" unless uboot || fes
     fel.boot_to_fes(fes, uboot)
-    puts "[OK]".ljust(8).green unless $options[:verbose]
+    puts "[OK]".ljust(4).green unless $options[:verbose]
   else
     raise FELFatal, "No action specified"
   end
