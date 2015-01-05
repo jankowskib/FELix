@@ -23,6 +23,7 @@ require 'bindata'
 require 'crc32'
 require 'crypt/rc6'
 require 'thread'
+require 'fileutils'
 
 require_relative 'FELConsts'
 require_relative 'FELStructs'
@@ -743,8 +744,8 @@ begin
         end
         exit FELIX_SUCCESS
       end
-      opts.on("--image-extract image", String, "Extract an item from Live" <<
-        "Suit's image. Use with --item") do |f|
+      opts.on("--image-extract image", String, "Extract a Live Suit " <<
+        "firmware image. Use with --item if you want to extract single item") do |f|
         $options[:action] = :extract
         $options[:file] = f
         $options[:dont_connect] = true
@@ -856,8 +857,6 @@ begin
   raise OptionParser::MissingArgument, "You must specify --address!" if
     $options[:direction] == :write && !$options[:item] && !$options[:address] &&
     [:write, :transmite, :run].include?($options[:action])
-  raise OptionParser::MissingArgument, "You must specify --item" if
-    $options[:action] == :extract && !$options[:item]
 rescue OptionParser::MissingArgument => e
   puts "#{e.message.camelize}. Type FELix.rb --help to see usage"
   exit FELIX_FAIL
@@ -1006,16 +1005,47 @@ begin
     fel.set_tool_mode(:usb_tool_update, :none)
     puts "[OK]".green unless $options[:verbose]
   when :extract
-    fn = "#{$options[:file]}_#{$options[:item]}"
-    print "* Extracting to #{fn}".ljust(57) << "\t" unless $options[:verbose]
-    item = fel.structure.item_by_file($options[:item])
-    raise FELError, "Item not found!" unless item
-    File.open(fn, "w") do |f|
-      fel.get_image_data(item, 8192) do |d|
-        f.write(d)
+    if $options[:item]
+      # Extract single item
+      fn = "#{$options[:file]}_#{$options[:item]}"
+      print "* Extracting to #{fn}".ljust(57) << "\t"
+      item = fel.structure.item_by_file($options[:item])
+      raise FELError, "Item not found!" unless item
+      File.open(fn, "w") do |f|
+        fel.get_image_data(item, 8192) do |d|
+          f.write(d)
+        end
+      end
+      puts "[OK]".green
+    else
+      # Extract everything we find
+      dir = "#{$options[:file]}_unpacked"
+      unless File.exists?(dir)
+        print "* Creating #{dir}".ljust(57) << "\t"
+        Dir.mkdir(dir)
+        puts "[OK]".green
+      end
+      fel.structure.item.each do |it|
+        path = it.path
+        # Trim silly addition from imgRePacker
+        path = path[12..-1] if path.start_with?("imgRePacker")
+        file = File.basename(path)
+        path = "#{dir}\\#{File.dirname(path)}"
+        print "* #{file}".ljust(57) << "\t"
+        FileUtils.mkdir_p(path) unless File.exists?(path)
+        File.open("#{path}\\#{file}", "w") do |f|
+          written = 0
+          fel.get_image_data(it, 8192) do |d|
+            f.write(d)
+            written+=d.bytesize
+            percent = written * 100 / it.file_len_low
+            print "\r* #{file}".ljust(57) << "\t"
+            print "#{percent}%".ljust(4).light_blue if percent < 100
+          end
+        end
+        puts "[OK]".green
       end
     end
-    puts "[OK]".green unless $options[:verbose]
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
