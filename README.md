@@ -4,9 +4,8 @@ FELix
 FELix is a multiplatform tool for Allwinner processors handling FEL and FES
 protocol written in Ruby
 
-* Uses libusb1.0 / ruby 2.0+
+* Uses libusb1.0 / ruby 2.0
 * More powerful than fel tool from sunxi-tools
-* Easy to improve
 
 Features
 ------------------
@@ -14,7 +13,7 @@ Features
 * Write / read memory
 * Execute the code at address
 * Flash LiveSuit image (at this moment only newer image are supported)
-* Extract data from LiveSuit image
+* Extract single item from LiveSuit image
 * Format the device NAND / Write new MBR
 * Enable NAND
 * Dump/flash single partition
@@ -25,8 +24,13 @@ Features
 Installation
 ------------------
 
-1. Install ruby 2.0+ (you can use ruby-installer on Windows)
-2.  Install bundler
+1. Install ruby 2.0 (you can use ruby-installer on Windows)
+
+        $ sudo apt-get install ruby2.0 ruby2.0-dev
+        $ sudo ln -sf /usr/bin/ruby2.0 /usr/bin/ruby
+        $ sudo ln -sf /usr/bin/gem2.0 /usr/bin/gem
+
+2. Install bundler
 
         $ gem install bundler
 
@@ -63,7 +67,7 @@ Howtos
   4. Flash or dump partition
 
           $ felix --write boot.img --item boot
-          
+
           $ felix --read boot.img --item boot
 
 
