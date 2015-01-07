@@ -173,6 +173,124 @@ class FELSuit < FELix
     run(0x4a000000)
   end
 
+
+
+  # Create DRAM config based on sys_config.fex, sys_config1.fex
+  # @return [AWSystemLegacyParameters,AWSystemParameters] dram config
+  def create_dram_config
+    dram_cfg = nil
+    if @structure.item_by_file("sys_config1.fex")
+      cfg = get_image_data(@structure.item_by_file("sys_config1.fex"))
+      p cfg
+      cfg_ini = IniFile.new( :content => cfg, :encoding => "UTF-8")
+      dram_cfg = AWLegacySystemParameters.new
+      # Assign values, but left defaults if entry doesn't exist
+      dram_cfg.uart_debug_tx   = FELHelpers::port_to_id(cfg_ini[:uart_para][
+        "uart_debug_tx"]) if cfg_ini[:uart_para]["uart_debug_tx"]
+      dram_cfg.uart_debug_port = cfg_ini[:uart_para]["uart_debug_port"] if
+        cfg_ini[:uart_para]["uart_debug_port"]
+      dram_cfg.dram_baseaddr = cfg_ini[:dram_para]["dram_baseaddr"] if
+        cfg_ini[:dram_para]["dram_baseaddr"]
+      dram_cfg.dram_clk = cfg_ini[:dram_para]["dram_clk"] if
+        cfg_ini[:dram_para]["dram_clk"]
+      dram_cfg.dram_type = cfg_ini[:dram_para]["dram_type"] if
+        cfg_ini[:dram_para]["dram_type"]
+      dram_cfg.dram_rank_num = cfg_ini[:dram_para]["dram_rank_num"] if
+        cfg_ini[:dram_para]["dram_rank_num"]
+      dram_cfg.dram_chip_density = cfg_ini[:dram_para]["dram_chip_density"] if
+        cfg_ini[:dram_para]["dram_chip_density"]
+      dram_cfg.dram_io_width = cfg_ini[:dram_para]["dram_io_width"] if
+        cfg_ini[:dram_para]["dram_io_width"]
+      dram_cfg.dram_bus_width = cfg_ini[:dram_para]["dram_bus_width"] if
+        cfg_ini[:dram_para]["dram_bus_width"]
+      dram_cfg.dram_cas = cfg_ini[:dram_para]["dram_cas"] if
+        cfg_ini[:dram_para]["dram_cas"]
+      dram_cfg.dram_zq = cfg_ini[:dram_para]["dram_zq"] if
+        cfg_ini[:dram_para]["dram_zq"]
+      dram_cfg.dram_odt_en = cfg_ini[:dram_para]["dram_odt_en"] if
+        cfg_ini[:dram_para]["dram_odt_en"]
+      dram_cfg.dram_size = cfg_ini[:dram_para]["dram_size"] if
+        cfg_ini[:dram_para]["dram_size"]
+      dram_cfg.dram_tpr0 = cfg_ini[:dram_para]["dram_tpr0"] if
+        cfg_ini[:dram_para]["dram_tpr0"]
+      dram_cfg.dram_tpr1 = cfg_ini[:dram_para]["dram_tpr1"] if
+        cfg_ini[:dram_para]["dram_tpr1"]
+      dram_cfg.dram_tpr2 = cfg_ini[:dram_para]["dram_tpr2"] if
+        cfg_ini[:dram_para]["dram_tpr2"]
+      dram_cfg.dram_tpr3 = cfg_ini[:dram_para]["dram_tpr3"] if
+        cfg_ini[:dram_para]["dram_tpr3"]
+      dram_cfg.dram_tpr4 = cfg_ini[:dram_para]["dram_tpr4"] if
+        cfg_ini[:dram_para]["dram_tpr4"]
+      dram_cfg.dram_tpr5 = cfg_ini[:dram_para]["dram_tpr5"] if
+        cfg_ini[:dram_para]["dram_tpr5"]
+      dram_cfg.dram_emr1 = cfg_ini[:dram_para]["dram_emr1"] if
+        cfg_ini[:dram_para]["dram_emr1"]
+      dram_cfg.dram_emr2 = cfg_ini[:dram_para]["dram_emr2"] if
+        cfg_ini[:dram_para]["dram_emr2"]
+      dram_cfg.dram_emr3 = cfg_ini[:dram_para]["dram_emr3"] if
+        cfg_ini[:dram_para]["dram_emr3"]
+    else
+      cfg = get_image_data(@structure.item_by_file("sys_config.fex"))
+      cfg_ini = IniFile.new( :content => cfg, :encoding => "UTF-8")
+      dram_cfg = AWSystemParameters.new
+      dram_cfg.uart_debug_tx   = FELHelpers::port_to_id(cfg_ini[:uart_para][
+        "uart_debug_tx"]) if cfg_ini[:uart_para]["uart_debug_tx"]
+      dram_cfg.uart_debug_port = cfg_ini[:uart_para]["uart_debug_port"] if
+        cfg_ini[:uart_para]["uart_debug_port"]
+      dram_cfg.dram_clk        = cfg_ini[:dram_para]["dram_clk"] if
+        cfg_ini[:dram_para]["dram_clk"]
+      dram_cfg.dram_type       = cfg_ini[:dram_para]["dram_type"] if
+        cfg_ini[:dram_para]["dram_type"]
+      dram_cfg.dram_zq         = cfg_ini[:dram_para]["dram_zq"] if
+        cfg_ini[:dram_para]["dram_zq"]
+      dram_cfg.dram_odt_en     = cfg_ini[:dram_para]["dram_odt_en"] if
+        cfg_ini[:dram_para]["dram_odt_en"]
+      dram_cfg.dram_para1      = cfg_ini[:dram_para]["dram_para1"] if
+        cfg_ini[:dram_para]["dram_para1"]
+      dram_cfg.dram_para2      = cfg_ini[:dram_para]["dram_para2"] if
+        cfg_ini[:dram_para]["dram_para2"]
+      dram_cfg.dram_mr0        = cfg_ini[:dram_para]["dram_mr0"] if
+        cfg_ini[:dram_para]["dram_mr0"]
+      dram_cfg.dram_mr1        = cfg_ini[:dram_para]["dram_mr1"] if
+        cfg_ini[:dram_para]["dram_mr1"]
+      dram_cfg.dram_mr2        = cfg_ini[:dram_para]["dram_mr2"] if
+        cfg_ini[:dram_para]["dram_mr2"]
+      dram_cfg.dram_mr3        = cfg_ini[:dram_para]["dram_mr3"] if
+        cfg_ini[:dram_para]["dram_mr3"]
+      dram_cfg.dram_tpr0       = cfg_ini[:dram_para]["dram_tpr0"] if
+        cfg_ini[:dram_para]["dram_tpr0"]
+      dram_cfg.dram_tpr1       = cfg_ini[:dram_para]["dram_tpr1"] if
+        cfg_ini[:dram_para]["dram_tpr1"]
+      dram_cfg.dram_tpr2       = cfg_ini[:dram_para]["dram_tpr2"] if
+        cfg_ini[:dram_para]["dram_tpr2"]
+      dram_cfg.dram_tpr3       = cfg_ini[:dram_para]["dram_tpr3"] if
+        cfg_ini[:dram_para]["dram_tpr3"]
+      dram_cfg.dram_tpr4       = cfg_ini[:dram_para]["dram_tpr4"] if
+        cfg_ini[:dram_para]["dram_tpr4"]
+      dram_cfg.dram_tpr5       = cfg_ini[:dram_para]["dram_tpr5"] if
+        cfg_ini[:dram_para]["dram_tpr5"]
+      dram_cfg.dram_tpr6       = cfg_ini[:dram_para]["dram_tpr6"] if
+        cfg_ini[:dram_para]["dram_tpr6"]
+      dram_cfg.dram_tpr7       = cfg_ini[:dram_para]["dram_tpr7"] if
+        cfg_ini[:dram_para]["dram_tpr7"]
+      dram_cfg.dram_tpr8       = cfg_ini[:dram_para]["dram_tpr8"] if
+        cfg_ini[:dram_para]["dram_tpr8"]
+      dram_cfg.dram_tpr9       = cfg_ini[:dram_para]["dram_tpr9"] if
+        cfg_ini[:dram_para]["dram_tpr9"]
+      dram_cfg.dram_tpr10      = cfg_ini[:dram_para]["dram_tpr10"] if
+        cfg_ini[:dram_para]["dram_tpr10"]
+      dram_cfg.dram_tpr11      = cfg_ini[:dram_para]["dram_tpr11"] if
+        cfg_ini[:dram_para]["dram_tpr11"]
+      dram_cfg.dram_tpr12      = cfg_ini[:dram_para]["dram_tpr12"] if
+        cfg_ini[:dram_para]["dram_tpr12"]
+      dram_cfg.dram_tpr13      = cfg_ini[:dram_para]["dram_tpr13"] if
+        cfg_ini[:dram_para]["dram_tpr13"]
+      dram_cfg.dram_size       = cfg_ini[:dram_para]["dram_size"] if
+        cfg_ini[:dram_para]["dram_size"]
+    end
+    dram_cfg
+  end
+
   # Check if image is encrypted
   # @raise [FELError] if image decryption failed
   def encrypted?
