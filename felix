@@ -87,6 +87,8 @@ require_relative 'libsparse'
 #    1. Steps 1-4 of boot 2.0 method
 #    2. FEL_DOWNLOAD: Send 512 bytes of data (seems its some failsafe DRAM config
 #        AWSystemParameters) at 0x7010 (SYS_PARA)
+#    => 180 bytes for sun4i
+#    2a.FEL_DOWNLOAD: Send 16 bytes of data (0x00's) at 0x7210 [sun4i only]
 #    3. FEL_DOWNLOAD: Send 2784 bytes of data (fes1-1.fex, padded with 0x00) at 0x7220 (SYS_INIT_PROC)
 #    => 2784 because that's length of SYS_INIT_PROC
 #    4. FEL_RUN: Run code at 0x7220 (fes1-1.fex)
@@ -98,6 +100,7 @@ require_relative 'libsparse'
 #    9. FEL_UPLOAD: Get 16 bytes of data ("DRAM",0x00000001, rest 0x00) from 0x7210 (SYS_PARA_LOG)
 #    => if 1 then DRAM is updated, else "Failed to update dram para"
 #    10.FEL_UPLOAD: Get 512 bytes of data (AWSystemParameters) from 0x7010 (SYS_PARA)
+#    => 180 bytes for sun4i
 #    11.FEL_DOWNLOAD: Send 8192 bytes of random generated data at 0x40100000 (DRAM_TEST_ADDR)
 #    12.FEL_UPLOAD: Get 8192 bytes of data from 0x40100000 => verify if DRAM is working ok
 #    13.FEL_DOWNLOAD: Send 16 bytes of data (filed 0x00) at 0x7210 (SYS_PARA_LOG)
