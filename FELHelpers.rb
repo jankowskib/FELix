@@ -106,6 +106,35 @@ class FELHelpers
       board << ", revision #{id & 0xFF}"
     end
 
+    # Convert sys_config.fex port to integer form
+    # @param port [String] port e.g. "port:PB22<2><1><default><default>"
+    # @return [Integer] integer form e.g. 0x7C4AC1
+    # @raise [FELError] if cannot parse port
+    # @example how to encode port (on example: port:PH20<2><1><default><default>):
+    #   ?    : 0x40000                  = 0x40000
+    #   group: 0x80000 + 'H' - 'A'      = 0x80007   (H)
+    #   pin:   0x100000 + (20 << 5)     = 0x100280  (20)
+    #   func:  0x200000 + (2  << 10)    = 0x200800  (<2>)
+    #   mul:   0x400000 + (1  << 14)    = 0x404000  (<1>)
+    #   pull:  0x800000 + (?  << 16)    = 0         (<default>)
+    #   data:  0x1000000 +(?  << 18)    = 0         (<default>)
+    #   sum                             = 0x7C4A87
+    # @todo find out how to encode port:powerX<>
+    def port_to_id(port)
+      raise FELError, "Failed to parse port string" unless port=~/port:p\w\d\d?<[\w<>]+>$/i
+      id = 0x40000
+      port.match(%r{port:p(?<group>\w)(?<pin>\d\d?)(?:<(?<func>\d+)>)?
+        (?:<(?<mul>\d+)>)?(?:<(?<pull>\d+)>)?(?:<(?<data>\d+)>)?}ix) do |m|
+        id+= 0x80000 + m[:group].ord - 'A'.ord
+        id+= 0x100000 + (m[:pin].to_i << 5)
+        id+= 0x200000 + (m[:func].to_i << 10) if m[:func]
+        id+= 0x400000 + (m[:mul].to_i << 14) if m[:mul]
+        id+= 0x800000 + (m[:pull].to_i << 16) if m[:pull]
+        id+= 0x1000000 + (m[:data].to_i << 18) if m[:data]
+      end
+      id
+    end
+
     # Convert tag mask to string
     # @param tags [Integer] tag flag
     # @return [String] human readable tags delimetered by |
