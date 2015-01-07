@@ -181,7 +181,7 @@ class FELSuit < FELix
     dram_cfg = nil
     if @structure.item_by_file("sys_config1.fex")
       cfg = get_image_data(@structure.item_by_file("sys_config1.fex"))
-      p cfg
+      cfg.tr!("\0","")
       cfg_ini = IniFile.new( :content => cfg, :encoding => "UTF-8")
       dram_cfg = AWLegacySystemParameters.new
       # Assign values, but left defaults if entry doesn't exist
@@ -231,6 +231,7 @@ class FELSuit < FELix
         cfg_ini[:dram_para]["dram_emr3"]
     else
       cfg = get_image_data(@structure.item_by_file("sys_config.fex"))
+      cfg.tr!("\0","")
       cfg_ini = IniFile.new( :content => cfg, :encoding => "UTF-8")
       dram_cfg = AWSystemParameters.new
       dram_cfg.uart_debug_tx   = FELHelpers::port_to_id(cfg_ini[:uart_para][
@@ -318,7 +319,7 @@ class FELSuit < FELix
   # @raise [FELError] if read failed
   def get_image_data(item, chunk = FELIX_MAX_CHUNK, length = item.data_len_low,
     offset = 0)
-    raise FELError, "Item not exist" unless item
+    raise FELError, "Item does not exist" unless item
     if block_given?
       File.open(@image) do |f|
         f.seek(item.off_len_low + offset, IO::SEEK_CUR)
