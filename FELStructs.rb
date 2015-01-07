@@ -169,10 +169,11 @@ class AWSystemParameters < BinData::Record
   uint32le :dram_tpr8, :initial_value => 0x604111D      # 0x68
   uint32le :dram_tpr9, :initial_value => 0x42DA072      # 0x6C
   uint32le :dram_tpr10, :initial_value => 0             # 0x70
-  uint32le :dram_tpr12, :initial_value => 0             # 0x74
-  uint32le :dram_tpr13, :initial_value => 0             # 0x78
-  uint32le :dram_size, :initial_value => (1024 << 20)   # 0x7C,  1024 MB
-  array    :reserved, :type => :uint32le, :initial_length => 96 # 0x80
+  uint32le :dram_tpr11, :initial_value => 0             # 0x74
+  uint32le :dram_tpr12, :initial_value => 0             # 0x78
+  uint32le :dram_tpr13, :initial_value => 0             # 0x7C
+  uint32le :dram_size, :initial_value => (1024 << 20)   # 0x80,  1024 MB
+  array    :reserved, :type => :uint32le, :initial_length => 95 # 0x84
 end
 
 # size 180
