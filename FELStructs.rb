@@ -22,6 +22,20 @@ end
 class FELFatal < StandardError
 end
 
+class BinData::Record
+  # Print nicely formatted structure
+  def pp
+    self.each_pair do |k ,v|
+      print "  #{k}".yellow.ljust(40)
+      if (Integer(v) rescue nil)
+        puts "0x%08x" % v
+      else
+        puts v.inspect
+      end
+    end
+  end
+end
+
 class AWUSBRequest < BinData::Record # size 32
   string   :magic,     :length => 4, :initial_value => "AWUC"
   uint32le :tag,       :initial_value => 0
