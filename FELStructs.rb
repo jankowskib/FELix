@@ -184,6 +184,41 @@ class AWSystemParameters < BinData::Record
   array    :reserved, :type => :uint32le, :initial_length => 96 # 0x80
 end
 
+# size 180
+# Used on old CPUs which contains sys_config1.fex & sys_config.fex
+class AWLegacySystemParameters < BinData::Record
+  uint32le :unk1, :initial_value => 0x2000000              # 0x00
+  uint32le :unk2, :initial_value => 0x2000000              # 0x04
+  uint32le :unk3, :initial_value => 0x2000100              # 0x08
+  uint32le :unk4, :initial_value => 128                    # 0x0C
+  uint32le :unk5                                           # 0x10
+  uint32le :unk6                                           # 0x14
+  uint32le :uart_debug_tx, :initial_value => 0x7C4AC1      # 0x18 [uart_para]
+  uint32le :uart_debug_port, :inital_value => 0            # 0x1C [uart_para]
+  array    :unk7, :type => :uint32le, :initial_length => 15 # 0x20
+  uint32le :dram_baseaddr, :initial_value => 0x40000000    # 0x5C
+  uint32le :dram_clk, :initial_value => 408                # 0x60
+  uint32le :dram_type, :initial_value => 3                 # 0x64
+  uint32le :dram_rank_num, :initial_value => 1             # 0x68
+  uint32le :dram_chip_density, :initial_value => 4096      # 0x6C
+  uint32le :dram_io_width, :initial_value => 16            # 0x70
+  uint32le :dram_bus_width, :initial_value => 32           # 0x74
+  uint32le :dram_cas, :initial_value => 6                  # 0x78
+  uint32le :dram_zq, :initial_value => 0x7F                # 0x7C
+  uint32le :dram_odt_en                                    # 0x80
+  uint32le :dram_size, :initial_value => 1024              # 0x84
+  uint32le :dram_tpr0, :initial_value => 0x30926692        # 0x88
+  uint32le :dram_tpr1, :initial_value => 0x1090            # 0x8C
+  uint32le :dram_tpr2, :initial_value => 0x1A0C8           # 0x90
+  uint32le :dram_tpr3                                      # 0x94
+  uint32le :dram_tpr4                                      # 0x98
+  uint32le :dram_tpr5                                      # 0x9C
+  uint32le :dram_emr1, :initial_value => 4                 # 0xA0
+  uint32le :dram_emr2                                      # 0xA4
+  uint32le :dram_emr3                                      # 0xA8
+  array    :unk8, :type => :uint32le, :initial_length => 2 # 0xAC
+end
+
 # Size 128
 class AWSunxiPartition < BinData::Record
   endian :little
