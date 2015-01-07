@@ -280,10 +280,15 @@ class FELHelpers
     # @return decryped binary data
     def decrypt(data, key)
       out = ""
+      # Fill block if last chunk is < 16 bytes
+      align = 16 - data.bytesize % 16
+      if align
+        data << "\0" * align
+      end
       data.scan(/.{16}/m) do |m|
         out << RC6[key].decrypt_block(m)
       end
-      out
+      out.byteslice(0...-align)
     end
 
     # Load Livesuit image header, and display info
