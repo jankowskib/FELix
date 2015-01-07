@@ -14,6 +14,7 @@
 #   limitations under the License.
 #
 
+# App version
 FELIX_VERSION = "1.0 RC2"
 
 #Maximum data transfer length
@@ -21,14 +22,18 @@ FELIX_MAX_CHUNK  = 65536
 #Sunxi NAND sector size
 FELIX_SECTOR = 512
 
+# RC6 keys
 RC6 = {
   :header => Crypt::RC6.new("\0" * 31 << "i"),
   :item   => Crypt::RC6.new("\1" * 31 << "m"),
   :data   => Crypt::RC6.new("\2" * 31 << "g")
 }
 
+# Error exit code - everything OK
 FELIX_SUCCESS = 0
+# Error exit code - something wrong happened
 FELIX_FAIL = 1
+# Error exit code - unhandled erorrs (WTF)
 FELIX_FATAL = 2
 
 #AWUSBRequest type

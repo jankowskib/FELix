@@ -63,7 +63,7 @@ end
 class SparseImage
 
   # Check sparse image validity
-  # @param file [File] image handle
+  # @param data [File] image handle
   # @param offset [Integer] file offset
   # @raise [SparseError] if fail
   def initialize(data, offset = 0)

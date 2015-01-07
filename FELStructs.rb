@@ -22,6 +22,7 @@ end
 class FELFatal < StandardError
 end
 
+# @visibility private
 class BinData::Record
   # Print nicely formatted structure
   def pp
@@ -554,7 +555,7 @@ class AWImage < BinData::Record
   end
 
   # Get item from LiveSuit image by signature
-  # @param sub_type [String] signature (i.e. BOOTLOADER_FEX00,  BOOT_FEX00000000, ...)
+  # @param signature [String] signature (i.e. BOOTLOADER_FEX00,  BOOT_FEX00000000, ...)
   # @return [AWImageItemV1, AWImageItemV3, nil] first item if found, else nil
   def item_by_sign(signature)
     item = self.item.select do |it|
