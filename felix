@@ -1060,7 +1060,7 @@ begin
     print "* Generating DRAM".ljust(57) << "\t"
     dram = fel.create_dram_config
     puts "[OK]".ljust(4).green
-    p dram
+    dram.pp
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
