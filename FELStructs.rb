@@ -161,27 +161,27 @@ class AWSystemParameters < BinData::Record
   uint32le :dram_type, :initial_value => 3              # 0x24
   uint32le :dram_zq, :initial_value => 0xBB             # 0x28
   uint32le :dram_odt_en, :initial_value => 0            # 0x2C
-  uint32le :dram_para1, :initial_value => 0x10F40400    # 0x30 &=0xffff => DRAM size (1048)
-  uint32le :dram_para2, :initial_value => 0x1211
-  uint32le :dram_mr0, :initial_value => 0x1A50
-  uint32le :dram_mr1, :initial_value => 0
-  uint32le :dram_mr2, :initial_value => 24
-  uint32le :dram_mr3, :initial_value => 0
-  uint32le :dram_tpr0, :initial_value => 0
-  uint32le :dram_tpr1, :initial_value => 0x80000800
-  uint32le :dram_tpr2, :initial_value => 0x46270140
-  uint32le :dram_tpr3, :initial_value => 0xA0C4284C
-  uint32le :dram_tpr4, :initial_value => 0x39C8C209
-  uint32le :dram_tpr5, :initial_value => 0x694552AD
-  uint32le :dram_tpr6, :initial_value => 0x3002C4A0
-  uint32le :dram_tpr7, :initial_value => 0x2AAF9B
-  uint32le :dram_tpr8, :initial_value => 0x604111D
-  uint32le :dram_tpr9, :initial_value => 0x42DA072
-  uint32le :dram_tpr10, :initial_value => 0
-  uint32le :dram_tpr12, :initial_value => 0
-  uint32le :dram_tpr13, :initial_value => 0           # 0x78
-  uint32le :dram_size, :initial_value => (1024 << 20) # 1024 MB
-  array    :unused, :type => :uint32le, :read_until => :eof
+  uint32le :dram_para1, :initial_value => 0x10F40400    # 0x30, &=0xffff => DRAM size (1024)
+  uint32le :dram_para2, :initial_value => 0x1211        # 0x34
+  uint32le :dram_mr0, :initial_value => 0x1A50          # 0x38
+  uint32le :dram_mr1, :initial_value => 0               # 0x3C
+  uint32le :dram_mr2, :initial_value => 24              # 0x40
+  uint32le :dram_mr3, :initial_value => 0               # 0x44
+  uint32le :dram_tpr0, :initial_value => 0              # 0x48
+  uint32le :dram_tpr1, :initial_value => 0x80000800     # 0x4C
+  uint32le :dram_tpr2, :initial_value => 0x46270140     # 0x50
+  uint32le :dram_tpr3, :initial_value => 0xA0C4284C     # 0x54
+  uint32le :dram_tpr4, :initial_value => 0x39C8C209     # 0x58
+  uint32le :dram_tpr5, :initial_value => 0x694552AD     # 0x5C
+  uint32le :dram_tpr6, :initial_value => 0x3002C4A0     # 0x60
+  uint32le :dram_tpr7, :initial_value => 0x2AAF9B       # 0x64
+  uint32le :dram_tpr8, :initial_value => 0x604111D      # 0x68
+  uint32le :dram_tpr9, :initial_value => 0x42DA072      # 0x6C
+  uint32le :dram_tpr10, :initial_value => 0             # 0x70
+  uint32le :dram_tpr12, :initial_value => 0             # 0x74
+  uint32le :dram_tpr13, :initial_value => 0             # 0x78
+  uint32le :dram_size, :initial_value => (1024 << 20)   # 0x7C,  1024 MB
+  array    :reserved, :type => :uint32le, :initial_length => 96 # 0x80
 end
 
 # Size 128
