@@ -748,9 +748,15 @@ begin
         end
         exit FELIX_SUCCESS
       end
-      opts.on("--image-extract image", String, "Extract a Live Suit " <<
+      opts.on("--image-extract image", String, "Extract a LiveSuit " <<
         "firmware image. Use with --item if you want to extract single item") do |f|
         $options[:action] = :extract
+        $options[:file] = f
+        $options[:dont_connect] = true
+      end
+      opts.on("--image-dram image", String, "Show DRAM config used in LiveSuit " <<
+      "firmware image") do |f|
+        $options[:action] = :generate_dram
         $options[:file] = f
         $options[:dont_connect] = true
       end
@@ -888,8 +894,8 @@ begin
       dev.port_number, dev.bus_number, dev.device_address, dev.idVendor,
       dev.idProduct]
   end
-  fel = [:flash, :extract, :boot2fes].include?($options[:action]) ? FELSuit.new(
-  dev, $options[:file]) : FELix.new(dev)
+  fel = [:flash, :extract, :boot2fes, :generate_dram].include?($options[:action]
+    ) ? FELSuit.new(dev, $options[:file]) : FELix.new(dev)
   puts "[OK]".green if dev
 
   case $options[:action]
@@ -1050,6 +1056,11 @@ begin
         puts "[OK]".green
       end
     end
+  when :generate_dram
+    print "* Generating DRAM".ljust(57) << "\t"
+    dram = fel.create_dram_config
+    puts "[OK]".ljust(4).green
+    p dram
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
