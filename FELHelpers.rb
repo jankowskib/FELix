@@ -121,7 +121,8 @@ class FELHelpers
     #   sum                             = 0x7C4A87
     # @todo find out how to encode port:powerX<>
     def port_to_id(port)
-      raise FELError, "Failed to parse port string" unless port=~/port:p\w\d\d?<[\w<>]+>$/i
+      raise FELError, "Failed to parse port string (#{port})" unless port=~
+        /port:p\w\d\d?<[\w<>]+>$/i
       id = 0x40000
       port.match(%r{port:p(?<group>\w)(?<pin>\d\d?)(?:<(?<func>\d+)>)?
         (?:<(?<mul>\d+)>)?(?:<(?<pull>\d+)>)?(?:<(?<data>\d+)>)?}ix) do |m|
