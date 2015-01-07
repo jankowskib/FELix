@@ -198,9 +198,9 @@ class FELSuit < FELix
   # @return [String] binary data if no block given
   # @yieldparam [String] data
   # @raise [FELError] if read failed
-  def get_image_data(item, chunk = FELIX_MAX_CHUNK, length = item.data_len_low,
+  def get_image_data(item, chunk = FELIX_MAX_CHUNK, length = item.file_len_low,
     offset = 0)
-    raise FELError, "Item not exist" unless item
+    raise FELError, "Item does not exist" unless item
     if block_given?
       File.open(@image) do |f|
         f.seek(item.off_len_low + offset, IO::SEEK_CUR)
