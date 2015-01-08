@@ -173,6 +173,50 @@ class FELSuit < FELix
     run(0x4a000000)
   end
 
+  # Download fes* files and run code in hope we boot to fes
+  # @param fes [String] fes1-1.fex binary
+  # @param fes_next [String] fes1-2.fex binary
+  # @param fes2 [String] fes.fex binary
+  # @param fes2_next [String] fes_2.fex binary
+  # @param dram_cfg [AWSystemParameters] DRAM params (recreated from sys_config if empty)
+  # @raise [String] error name if happens
+  # @note Only for legacy images
+  def boot_to_fes_legacy(fes, fes_next, fes2, fes2_next, dram_cfg = nil)
+    raise FELError, "FES1-1 is too big (#{fes.bytesize}>2784)" if fes.
+      bytesize>2784
+    raise FELError, "FES1-2 is too big (#{fes_next.bytesize}>16384)" if fes_next.
+      bytesize>16384
+    raise FELError, "FES2 is too big (#{fes2.bytesize}>0x80000)" if fes2.
+      bytesize>0x80000
+    raise FELError, "FES2-2 is too big (#{fes2_next.bytesize}>2784)" if fes2_next.
+      bytesize>2784
+    raise FELError, "sys_config.fex not found. Make sure it's legacy image type" unless
+      @structure.item_by_file("sys_config.fex")
+
+    # Create DRAM config based on sys_config.fex if doesn't exist
+    dram_cfg||=create_dram_config
+    dram_cfg.dram_size = 0
+
+    #write(0x7e00, "\0"*4 << "\xCC"*252)
+
+    write(0x7010, dram_cfg.to_binary_s)
+    #write(0x7210, "\0"*16) # clear LOG
+    if fes.bytesize<2784
+      fes << "\0" * (2784 - fes.bytesize)
+    end
+    write(0x7220, fes)
+    run(0x7220)
+    sleep(2)
+    # data = read(0x7210, 16)
+    # p data if $options[:verbose]
+    write(0x7210, "\0"*16) # clear LOG
+
+    write(0x2000, fes_next)
+    run(0x2000)
+    write(0x40200000, fes2)
+    write(0x7220, fes2_next)
+    run(0x7220)
+  end
 
 
   # Create DRAM config based on sys_config.fex, sys_config1.fex

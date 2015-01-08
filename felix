@@ -1081,10 +1081,25 @@ begin
     raise FELError, "Device already in FES mode" if info.mode == AWDeviceMode[:fes]
     puts "[OK]".ljust(4).green unless $options[:verbose]
     print "* Booting to FES".ljust(57) << "\t" unless $options[:verbose]
-    uboot = fel.get_image_data(fel.structure.item_by_file("u-boot.fex"))
-    fes = fel.get_image_data(fel.structure.item_by_file("fes1.fex"))
-    raise FELError, "Failed to get required items from image" unless uboot || fes
-    fel.boot_to_fes(fes, uboot)
+    item_uboot = fel.structure.item_by_file("u-boot.fex")
+    item_fes = fel.structure.item_by_file("fes1.fex")
+    if item_uboot && item_fes
+      uboot = fel.get_image_data(item_uboot)
+      fes = fel.get_image_data(item_fes)
+      fel.boot_to_fes(fes, uboot)
+    else
+      item_fes11 = fel.structure.item_by_file("fes_1-1.fex")
+      item_fes12 = fel.structure.item_by_file("fes_1-2.fex")
+      item_fes = fel.structure.item_by_file("fes.fex")
+      item_fes2 = fel.structure.item_by_file("fes_2.fex")
+      raise FELError, "Failed to get required items from image" unless (
+      item_fes11 && item_fes12 && item_fes && item_fes2)
+      fes11 = fel.get_image_data(item_fes11)
+      fes12 = fel.get_image_data(item_fes12)
+      fes = fel.get_image_data(item_fes)
+      fes2 = fel.get_image_data(item_fes2)
+      fel.boot_to_fes_legacy(fes11, fes12, fes, fes2)
+    end
     puts "[OK]".ljust(4).green unless $options[:verbose]
   else
     raise FELFatal, "No action specified"

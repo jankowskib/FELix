@@ -185,7 +185,7 @@ class FELHelpers
       elsif packet.length == 512
         p = AWSystemParameters.read(packet)
         puts "<-- (% 5d) " % packet.bytesize << "AWSystemParameters".light_blue
-        p p
+        p.pp
       elsif packet.length == 12 && dir == :read
         p = AWFESVerifyStatusResponse.read(packet)
         puts "<-- (% 5d) " % packet.bytesize << "AWFESVerifyStatusResponse ".
