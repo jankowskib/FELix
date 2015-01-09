@@ -249,7 +249,7 @@ class FELHelpers
     # @param file [String] file name
     def debug_packets(file)
       return if file.nil?
-      print "Processing...".green
+      print "* Processing..."
       packets = Array.new
       contents = File.read(file)
       i = 0
@@ -257,7 +257,7 @@ class FELHelpers
         i+=1
         hstr = ""
         packet[0].scan(/0x([0-9A-Fa-f]{2})/m) { |hex| hstr << hex[0] }
-        print "\rProcessing...#{i} found".green
+        print "\r* Processing..." << "#{i}".yellow << " found"
         #Strip USB header
         begin
           packets << hstr.to_byte_string[27..-1] if hstr.to_byte_string[27..-1] != nil

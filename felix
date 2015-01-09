@@ -783,8 +783,9 @@ begin
         exit FELIX_SUCCESS
       end
       opts.on("--decode path", String, "Decode packets from Wireshark dump") do |f|
-        FELHelpers.debug_packets(f)
-        exit FELIX_SUCCESS
+        $options[:action] = :decode_packets
+        $options[:file] = f
+        $options[:dont_connect] = true
       end
       opts.on("--decode-mbr path", String, "Decode sunxi-mbr.fex") do |f|
         begin
@@ -1129,6 +1130,8 @@ begin
     dram = fel.create_dram_config
     puts "[OK]".ljust(4).green
     dram.pp
+  when :decode_packets
+    FELHelpers.debug_packets($options[:file])
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
     fel.flash do |s, percent|
