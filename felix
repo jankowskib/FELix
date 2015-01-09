@@ -616,14 +616,14 @@ class FELix
   # @return [String] data if `direction` is `:read`
   # @yieldparam [Integer] read/written bytes
   # @note Use only in :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this
-  # @todo need to add yield block
   def transmite(direction, *opts)
     opts = opts.first
     opts[:media_index] ||= :dram
     start = 0
     if direction == :write
-      raise FELError, "Missing arguments for FES_TRANSMITE(download)" unless
-        opts[:memory] && opts[:address]
+      raise FELError, "Memory not specifed" unless opts[:memory]
+      raise FELError, "Address not specifed" unless opts[:address]
+      raise FELError, "Command is not usable in FEL mode" if $options[:mode] == :fel
 
       total_len = opts[:memory].bytesize
       address = opts[:address]
@@ -640,13 +640,12 @@ class FELix
           request.len = FELIX_MAX_CHUNK
         end
         data = send_request(request.to_binary_s)
-        if data == nil
-          raise FELError, "Failed to send request (#{request.cmd})"
-        end
+        raise FELError, "Failed to send request (#{request.cmd})" if data == nil
+
         data = send_request(opts[:memory].byteslice(start, request.len))
-        if data == nil
-          raise FELError, "Failed to send data (#{start}/#{opts[:memory].bytesize})"
-        end
+        raise FELError, "Failed to send data (#{start}/#{opts[:memory].
+          bytesize})" if data == nil
+
         data = recv_request(8)
         if data == nil || data.bytesize != 8
           raise FELError, "Failed to receive device status (data: #{data})"
@@ -657,45 +656,53 @@ class FELix
         end
         start+=request.len
         total_len-=request.len
-        next_sector=request.len / 512
-        address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
-        print "\r* #{$options[:mode]}: Writing data (" <<
-        "#{start}/#{opts[:memory].bytesize} bytes)" unless $options[:verbose]
+        if opts[:media_index] == :dram
+          address+=request.len
+        else
+          next_sector=request.len / 512
+          address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
+        end
+        yield start if block_given? # yield sent bytes
       end
     elsif direction == :read
-      raise FELError, "Missing arguments for FES_TRANSMITE(upload)" unless opts[:length] &&
-        opts[:address]
-      # @todo Add support for reading>65536 data
-      raise FELError, "reading more than #{FELIX_MAX_CHUNK} bytes is not " <<
-        "implemented yet!" if opts[:length] > FELIX_MAX_CHUNK
-      print "\r* Reading" unless $options[:verbose]
-
+      raise FELError, "Length not specifed" unless opts[:length]
+      raise FELError, "Address not specifed" unless opts[:address]
+      result = ""
       request = AWFESTrasportRequest.new
-      request.address = opts[:address]
-      request.len = opts[:length]
+      address = opts[:address]
+      request.len = remain_len = length = opts[:length]
       request.direction = FESTransmiteFlag[direction]
       request.media_index = FESIndex[opts[:media_index]]
-      data = send_request(request.to_binary_s)
-      raise "Failed to send AWFESTrasportRequest (response len: " <<
-      "#{data.bytesize} != 13)" if data.bytesize != 13
 
-      output = recv_request(request.len)
-
-      # Rescue if we received AWUSBResponse
-      output = recv_request(request.len) if output.bytesize !=
-        request.len && output.bytesize == 13
-      # Rescue if we received AWFELStatusResponse
-      output = recv_request(request.len) if output.bytesize !=
-        request.len && output.bytesize == 8
-
-      raise "Data size mismatch (data len #{output.bytesize}" <<
-      " != #{request.len})" if output.bytesize != request.len
-
-      status = recv_request(8)
-      raise "Failed to get device status (data: #{status})" if status.bytesize != 8
-      fel_status = AWFELStatusResponse.read(status)
-      raise "Command failed (Status #{fel_status.state})" if fel_status.state > 0
-      output
+      while remain_len>0
+        request.address = address
+        if remain_len / FELIX_MAX_CHUNK == 0
+          request.len = remain_len
+        else
+          request.len = FELIX_MAX_CHUNK
+        end
+        data = send_request(request.to_binary_s)
+        raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+          " != 13)" if data.bytesize != 13
+        output = recv_request(request.len)
+        raise FELError, "Data size mismatch (data len #{output.bytesize}" <<
+          " != #{request.len})" if output.bytesize != request.len
+        status = recv_request(8)
+        raise FELError, "Failed to get device status (data: #{status})" if status.bytesize != 8
+        fel_status = AWFELStatusResponse.read(status)
+        raise FELError, "Command failed (Status #{fel_status.state})" if fel_status.state > 0
+        result << output
+        remain_len-=request.len
+        # if EFEX_TAG_DRAM isnt set we read nand/sdcard
+        if opts[:media_index] == :dram
+          address+=request.len
+        else
+          next_sector=request.len / 512
+          address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
+        end
+        yield length-remain_len if block_given?
+      end
+      result
     else
       raise "Unknown direction '(#{direction})'"
     end
@@ -1073,7 +1080,12 @@ begin
     data ||= nil
     data = fel.transmite($options[:direction], :address => $options[:address],
       :length => $options[:length], :memory => data, :media_index =>
-      $options[:index])
+      $options[:index]) do |b|
+        print ("\r* #{$options[:mode]}: Transmiting data (" <<
+        "#{b}/#{$options[:length]} bytes)").ljust(57) << "\t" unless $options[:verbose]
+        percent = (b * 100) / $options[:length]
+        print "#{percent}%".ljust(4).light_blue unless percent == 100
+    end
     if $options[:direction] == :read && data
       print "\r* Writing data (#{data.length} bytes )".ljust(57) << "\t"
       File.open($options[:file], "w") { |f| f.write(data) }
