@@ -838,7 +838,7 @@ begin
         $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
       end
       opts.on("-c", "--context ctx", Modes, "Set command context to one of " <<
-      "mode (" << Modes.join(", ") << "). Default: fes") do |m|
+      "mode (" << Modes.join(", ") << "). Default: fel") do |m|
         $options[:mode] = m.to_sym
       end
       opts.on("--index idx", FESIndex.keys, "Set media index " <<
