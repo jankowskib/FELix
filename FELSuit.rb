@@ -174,8 +174,8 @@ class FELSuit < FELix
   end
 
   # Download fes* files and run code in hope we boot to fes
-  # @param fes [String] fes1-1.fex binary
-  # @param fes_next [String] fes1-2.fex binary
+  # @param fes [String] fes_1-1.fex binary
+  # @param fes_next [String] fes_1-2.fex binary
   # @param fes2 [String] fes.fex binary
   # @param fes2_next [String] fes_2.fex binary
   # @param dram_cfg [AWSystemParameters] DRAM params (recreated from sys_config if empty)
@@ -195,21 +195,21 @@ class FELSuit < FELix
 
     # Create DRAM config based on sys_config.fex if doesn't exist
     dram_cfg||=create_dram_config
-    dram_cfg.dram_size = 0
+    #dram_cfg.dram_size = 0
 
     #write(0x7e00, "\0"*4 << "\xCC"*252)
 
     write(0x7010, dram_cfg.to_binary_s)
     #write(0x7210, "\0"*16) # clear LOG
-    if fes.bytesize<2784
-      fes << "\0" * (2784 - fes.bytesize)
-    end
+    #if fes.bytesize<2784
+    #  fes << "\0" * (2784 - fes.bytesize)
+    #end
     write(0x7220, fes)
     run(0x7220)
     sleep(2)
     # data = read(0x7210, 16)
     # p data if $options[:verbose]
-    write(0x7210, "\0"*16) # clear LOG
+    # write(0x7210, "\0"*16) # clear LOG
 
     write(0x2000, fes_next)
     run(0x2000)
