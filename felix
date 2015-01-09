@@ -836,7 +836,7 @@ begin
       "mode (" << Modes.join(", ") << "). Default: fes") do |m|
         $options[:mode] = m.to_sym
       end
-      opts.on("-i", "--index idx", FESIndex.keys, "Set media index " <<
+      opts.on("--index idx", FESIndex.keys, "Set media index " <<
       "(" << FESIndex.keys.join(", ") << ")") do |i|
         $options[:index] = i.to_sym
       end
@@ -844,7 +844,7 @@ begin
       AWTags.keys.join(", ") << ")") do |t|
         $options[:tags] = t.map(&:to_sym) # Convert every value to symbol
       end
-      opts.on("--item name", String, "File from image to extract (without" <<
+      opts.on("-i", "--item name", String, "File from image to extract (without" <<
       " the path) or partition name (e.g. boot, system)") do |it|
         $options[:item] = it
       end
