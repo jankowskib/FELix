@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
 #   FELix.rb
-#   Copyright 2014 Bartosz Jankowski
+#   Copyright 2014-2015 Bartosz Jankowski
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -312,6 +312,7 @@ class FELix
   # @return [String] requested data
   # @raise [String] error name
   # @yieldparam [Integer] read bytes
+  # @note Not usable on legacy fes (boot1.0)
   def read(address, length, tags=[:none], mode=:fel)
     raise FELError, "Length not specifed" unless length
     raise FELError, "Address not specifed" unless address
@@ -373,6 +374,7 @@ class FELix
   # @param dontfinish do not set finish tag in `:fes` context
   # @raise [String] error name
   # @yieldparam [Integer] sent bytes
+  # @note Not usable on legacy fes (boot1.0)
   def write(address, memory, tags=[:none], mode=:fel, dontfinish=false)
     raise FELError, "Memory not specifed" unless memory
     raise FELError, "Address not specifed" unless address
@@ -548,6 +550,9 @@ class FELix
   # @option opts :memory [String] data to write (use only with `:write`)
   # @option opts :media_index [Symbol<FESIndex>] one of index (default `:dram`)
   # @option opts :length [Integer] size of data (use only with `:read`)
+  # @raise [FELError] error name
+  # @return [String] data if `direction` is `:read`
+  # @yieldparam [Integer] read/written bytes
   # @note Use only in :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this
   # @todo need to add yield block
   def transmite(direction, *opts)
@@ -1093,7 +1098,7 @@ begin
       item_fes = fel.structure.item_by_file("fes.fex")
       item_fes2 = fel.structure.item_by_file("fes_2.fex")
       raise FELError, "Failed to get required items from image" unless (
-      item_fes11 && item_fes12 && item_fes && item_fes2)
+        item_fes11 && item_fes12 && item_fes && item_fes2)
       fes11 = fel.get_image_data(item_fes11)
       fes12 = fel.get_image_data(item_fes12)
       fes = fel.get_image_data(item_fes)
