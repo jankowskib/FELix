@@ -1186,6 +1186,9 @@ rescue FELFatal => e
 rescue LIBUSB::ERROR_NOT_SUPPORTED
   puts "[FATAL]\t".red << "You must install libusb filter on your usb device driver"
   $exit_code = FELIX_FAIL
+rescue SignalException
+  puts "\n[HALT]\t".red << "Action aborted"
+  $exit_code = FELIX_FATAL
 rescue => e
   puts "[WTF]".red
   puts "#{e.message} at #{e.backtrace.join("\n")}"
