@@ -114,7 +114,7 @@ AWActions = {
 FESTransmiteFlag = {
   :write                           => 0x10, # aka :download
   :read                            => 0x20, # aka :upload
-# used on boot1.0 (index must be 0x20)
+# used on boot1.0 (index must be | :write)
   :start                           => 0x40, # [not sure]
   :finish                          => 0x80, # [not sure]
 }
@@ -153,7 +153,7 @@ FESIndex = {
 # these below are usable on boot 1.0
   :nand                            => 0x2,
   :card                            => 0x3,
-  :unknown                         => 0x20
+  :nand2                           => 0x20
 }
 
 #Livesuit image attributes
