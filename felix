@@ -517,6 +517,7 @@ class FELix
   # Test purposes only!
   # @param req [Integer] one of #FESCmd or #FELCmd
   # @raise [String] error name
+  # @return [String] device response
   # @note Test purposes only!
   def request(req)
     request = AWFELMessage.new
@@ -527,14 +528,14 @@ class FELix
     " != 13)" if data.bytesize != 13
 
     output = recv_request(FELIX_MAX_CHUNK)
-    Hexdump.dump output
 
     status = recv_request(8)
     raise FELError, "Failed to get device status (data: #{status})" if status.
       bytesize != 8
     status = AWFELStatusResponse.read(status)
-    raise FELError, "Command failed (Status #{status.state})" if fel_status.
+    raise FELError, "Command failed (Status #{status.state})" if status.
       state > 0
+    output
   end
 
   # Verify last operation status
@@ -1059,8 +1060,9 @@ begin
     puts "[OK]".green unless $options[:verbose]
   when :request
     print "* Sending a request".ljust(57) << "\t" unless $options[:verbose]
-    fel.request($options[:request])
+    out = fel.request($options[:request])
     puts "[OK]".green unless $options[:verbose]
+    Hexdump.dump out
   when :transmite
     if $options[:direction] == :write
       print "* Reading file" unless $options[:verbose]
