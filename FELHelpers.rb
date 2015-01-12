@@ -93,7 +93,7 @@ class FELHelpers
     # @return [String] board name
     def board_id_to_str(id)
       board = case (id >> 8 & 0xFFFF)
-      when 0x1610 then "Allwinner A31s (sun6i)"
+      when 0x1610 then "Allwinner AXX (sunxi)"
       when 0x1623 then "Allwinner A10 (sun4i)"
       when 0x1625 then "Allwinner A13/A10s (sun5i)"
       when 0x1633 then "Allwinner A31 (sun6i)"
