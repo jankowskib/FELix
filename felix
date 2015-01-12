@@ -612,6 +612,7 @@ class FELix
   # @option opts :memory [String] data to write (use only with `:write`)
   # @option opts :media_index [Symbol<FESIndex>] one of index (default `:dram`)
   # @option opts :length [Integer] size of data (use only with `:read`)
+  # @option opts :dontfinish [TrueClass, FalseClass] do not set finish tag
   # @raise [FELError] error name
   # @return [String] data if `direction` is `:read`
   # @yieldparam [Integer] read/written bytes
@@ -631,6 +632,8 @@ class FELix
       request = AWFESTrasportRequest.new # Little optimization
       request.direction = FESTransmiteFlag[direction]
       request.media_index = FESIndex[opts[:media_index]]
+      # Set :start tag when writing to physical memory
+      request.flags |= FESTransmiteFlag[:start] if request.media_index>0
 
       while total_len>0
         request.address = address
@@ -639,8 +642,14 @@ class FELix
         else
           request.len = FELIX_MAX_CHUNK
         end
+
+        # At last chunk finish tag must be set
+        request.flags |= FESTransmiteFlag[:finish] if total_len <= FELIX_MAX_CHUNK && opts[:dontfinish] == false
+
         data = send_request(request.to_binary_s)
         raise FELError, "Failed to send request (#{request.cmd})" if data == nil
+        # Clear :start tag
+        request.flags &= ~(FESTransmiteFlag[:start])
 
         data = send_request(opts[:memory].byteslice(start, request.len))
         raise FELError, "Failed to send data (#{start}/#{opts[:memory].
