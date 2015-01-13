@@ -116,15 +116,13 @@ FESTransmiteFlag = {
   :write                           => 0x10, # aka :download
   :read                            => 0x20, # aka :upload
 # used on boot1.0 (index must be | :write)
-  :start                           => 0x40, # [not sure]
-  :finish                          => 0x80, # [not sure]
+  :start                           => 0x40,
+  :finish                          => 0x80,
 }
 
 #TAGS FOR FES_DOWN
 AWTags = {
   :none                            => 0x0,
-#  :data_mask                       => 0x7FFF,
-#  :dram_mask                       => 0x7F00,
   :dram                            => 0x7F00,
   :mbr                             => 0x7F01, # this flag actually perform erase
   :uboot                           => 0x7F02,
@@ -134,10 +132,10 @@ AWTags = {
   :pmu_set                         => 0x7F05,
   :unseq_mem_for_read              => 0x7F06,
   :unseq_mem_for_write             => 0x7F07,
+  :full_size                       => 0x7F10, # as seen on A80, download whole image at once
   :flash                           => 0x8000, # used only for writing
   :finish                          => 0x10000,
   :start                           => 0x20000,
-#  :mask                            => 0x30000
 }
 
 #csw_status of AWUSBResponse
@@ -154,7 +152,7 @@ FESIndex = {
 # these below are usable on boot 1.0
   :nand                            => 0x2,
   :card                            => 0x3,
-  :nand2                           => 0x20
+  :nand2                           => 0x20 # encrypted data write?
 }
 
 #Livesuit image attributes
