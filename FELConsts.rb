@@ -58,24 +58,25 @@ FELCmd = {
 FESCmd = {
   :transmite                       => 0x201, # read,write depends on flag
   :run                             => 0x202,
-  :info                            => 0x203, # len ∈ {24...31}
-  :get_msg                         => 0x204,
-  :unreg_fed                       => 0x205,
+  :info                            => 0x203, # get if FES_RUN has finished (32 bytes)
+  :get_msg                         => 0x204, # get result of last FES_RUN (param buffer size)
+  :unreg_fed                       => 0x205, # unmount NAND/MMC
+  # Following are available on boot2.0
   :download                        => 0x206,
   :upload                          => 0x207,
-  :verify                          => 0x208,
+  :verify                          => 0x208, # check CRC of given memory block
   :query_storage                   => 0x209, # used to check if we boot from nand or sdcard
-  :flash_set_on                    => 0x20A, # execs sunxi_sprite_init(0) => no data
-  :flash_set_off                   => 0x20B, # execs sunxi_sprite_exit(1) => no data
+  :flash_set_on                    => 0x20A, # exec sunxi_sprite_init(0) => no data
+  :flash_set_off                   => 0x20B, # exec sunxi_sprite_exit(1) => no data
   :verify_value                    => 0x20C,
-  :verify_status                   => 0x20D, # Read len 12 => AWFESVerifyStatusResponse
-  :flash_size_probe                => 0x20E, # Read len 4 => sunxi_sprite_size()
+  :verify_status                   => 0x20D, # read len 12 => AWFESVerifyStatusResponse
+  :flash_size_probe                => 0x20E, # read len 4 => sunxi_sprite_size()
   :tool_mode                       => 0x20F, # can be used to reboot device
                                              # :toolmode is one of AWUBootWorkMode
                                              # :nextmode is desired mode
   :memset                          => 0x210, # can be used to fill memory with desired value (byte)
-  :pmu                             => 0x211,
-  :unseqmem_read                   => 0x212,
+  :pmu                             => 0x211, # change voltage setting
+  :unseqmem_read                   => 0x212, # unsequenced memory read
   :unseqmem_write                  => 0x213
 }
 
