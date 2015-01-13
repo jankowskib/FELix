@@ -771,10 +771,6 @@ end
 
 $exit_code = FELIX_SUCCESS
 $options = {}
-puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
-puts "Warning:".red << "I don't give any warranty on this software"
-puts "You use it at own risk!"
-puts "----------------------"
 
 begin
   # ComputerInteger: hex strings (0x....) or decimal
@@ -935,6 +931,9 @@ begin
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
         $options[:verbose] = true
       end
+      opts.on_tail("--silent", "Don't print banner") do
+        $options[:silent] = true
+      end
   end.parse!
   $options[:tags] = [:none] unless $options[:tags]
   $options[:mode] = :fel unless $options[:mode]
@@ -963,6 +962,13 @@ rescue OptionParser::InvalidOption
 end
 
 begin
+  unless $options[:silent]
+    puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
+    puts "Warning:".red << "I don't give any warranty on this software"
+    puts "You use it at own risk!"
+    puts "----------------------"
+  end
+
   unless $options[:dont_connect]
   usb = LIBUSB::Context.new
     devices = usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8)
