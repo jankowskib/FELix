@@ -160,7 +160,12 @@ end
 #   };
 # @note default values are for A31s (sun8iw1p2)
 class AWSystemParameters < BinData::Record
-  array    :unknown, :type => :uint8, :initial_length => 24
+  uint32le :chip, :initial_value => 0                   # 0x00 [platform]
+  uint32le :pid,  :initial_value => 0                   # 0x04 [platform]
+  uint32le :sid,  :initial_value => 0                   # 0x08 [platform]
+  uint32le :bid,  :initial_value => 0                   # 0x0C [platform]
+  uint32le :unk5                                        # 0x10
+  uint32le :unk6                                        # 0x14
   uint32le :uart_debug_tx, :initial_value => 0x7C4A87   # 0x18 [uart_para]
   uint32le :uart_debug_port, :inital_value => 0         # 0x1C [uart_para]
   uint32le :dram_clk, :initial_value => 240             # 0x20
@@ -194,10 +199,10 @@ end
 # size 180
 # Used on old CPUs which contains sys_config1.fex & sys_config.fex
 class AWLegacySystemParameters < BinData::Record
-  uint32le :unk1, :initial_value => 0x2000000              # 0x00
-  uint32le :unk2, :initial_value => 0x2000000              # 0x04
-  uint32le :unk3, :initial_value => 0x2000100              # 0x08
-  uint32le :unk4, :initial_value => 128                    # 0x0C
+  uint32le :chip, :initial_value => 0x2000000              # 0x00 [platform]
+  uint32le :pid,  :initial_value => 0x2000000              # 0x04 [platform]
+  uint32le :sid,  :initial_value => 0x2000100              # 0x08 [platform]
+  uint32le :bid,  :initial_value => 128                    # 0x0C [platform]
   uint32le :unk5                                           # 0x10
   uint32le :unk6                                           # 0x14
   uint32le :uart_debug_tx, :initial_value => 0x7C4AC1      # 0x18 [uart_para]
