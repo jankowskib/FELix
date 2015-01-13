@@ -163,6 +163,14 @@ AWImageAttr = {
   :compress                       => 0x80000000
 }
 
+#FES run types (AWFELMessage->len)
+AWFESRunType = {
+  :has_param                      => 0x1,
+  :fet                            => 0x10,
+  :gen_code                       => 0x20,
+  :fed                            => 0x30
+}
+
 #Live suit item types
 AWItemType = {
   :common                         => "COMMON",
