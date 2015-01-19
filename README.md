@@ -36,7 +36,7 @@ Installation
 
 3. Install libraries (Linux only)
 
-        $ sudo apt-get install libusb-1.0.0-dev libffi-dev libssl-dev
+        $ sudo apt-get install libusb-1.0.0-dev libffi-dev
 
 4. Run bundler in application directory
 
@@ -55,7 +55,9 @@ Howtos
 ------------------
 
 * Dump/flash single partition
-  1. Get firmware image containing u-boot.fex and fes1.fex files
+
+  1. Get firmware image
+
   2. Boot to FES
 
           $ felix --tofes <firmware.img>
@@ -70,12 +72,28 @@ Howtos
 
           $ felix --read boot.img --item boot
 
+* Write new `boot0`/`boot1` (**Warning**: this may brick your device if you write incorrect file)
+
+  1. Get firmware image
+  
+  2. Boot to FES
+
+          $ felix --tofes <firmware.img>
+
+  3. Write new boot0 using fes context and boot0 tag
+
+          $ felix --write boot0_nand.fex -c fes -t boot0
+
+  4. Optionally reboot device
+
+          $ felix --reboot
+
 
 Issues
 ------------------
 
 As I have limited access to Allwinner devices, I encourage you to report issues
-you encounter in Issues section. As far I tested the tool on A23, A31 and A31s.
+you encounter in Issues section. As far I tested the tool on A13, A23, A31 and A31s.
 
 
 Todo
@@ -85,6 +103,7 @@ There's a lot of things to do. The most important are:
 
 - [ ] Support for legacy image format (partially done)
 - [x] Separate command for reading/writing NAND partitions
-- [ ] Improve speed of libsparse / rc6 algorithm
+- [x] Improve speed of libsparse / rc6 algorithm
 - [ ] Partitioning support without sunxi_mbr
 - [ ] Handle every available FEL/FES command
+- [ ] Some kind of GUI
