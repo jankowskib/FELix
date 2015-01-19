@@ -75,7 +75,7 @@ Howtos
 * Write new `boot0`/`boot1` (**Warning**: this may brick your device if you write incorrect file)
 
   1. Get firmware image
-  
+
   2. Boot to FES
 
           $ felix --tofes <firmware.img>
@@ -102,6 +102,7 @@ Todo
 There's a lot of things to do. The most important are:
 
 - [ ] Support for legacy image format (partially done)
+- [ ] Improve error handling (may be troublesome)
 - [x] Separate command for reading/writing NAND partitions
 - [x] Improve speed of libsparse / rc6 algorithm
 - [ ] Partitioning support without sunxi_mbr
