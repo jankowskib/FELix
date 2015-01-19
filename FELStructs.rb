@@ -231,6 +231,50 @@ class AWLegacySystemParameters < BinData::Record
   array    :unk8, :type => :uint32le, :initial_length => 2 # 0xAC
 end
 
+#size 104
+class AWSysParaPart < BinData::Record
+  endian :little
+  uint32 :address_high, :initial_value => 0
+  uint32 :address_low
+  string :classname, :length => 32, :trim_padding => true, :initial_value => "DISK"
+  string :name, :length => 32, :trim_padding => true
+  uint32 :user_type
+  uint32 :ro
+  array  :reserved, :type => :uint8, :initial_length => 24
+end
+
+# size 97 bytes
+class AWSysParaItem < BinData::Record
+  endian :little
+  string :name, :length => 32, :trim_padding => true
+  string :filename, :length => 32, :trim_padding => true
+  string :verify_filename, :length => 32, :trim_padding => true # checksum of the item
+  uint8  :encrypt, :initial_value => 0
+end
+
+# size 5496, send in FES mode (boot1.0 only) as param to FED
+class AWSysPara < BinData::Record
+  string   :magic, :length => 8, :initial_value => "SYS_PARA" # 0x00
+  uint32le :unk1, :initial_value => 256                       # 0x08
+  uint32le :eraseflag, :initial_value => 1                   # 0x0C
+  uint32le :jtag, :initial_value => 1                         # 0x10 [not sure]
+  aw_legacy_system_parameters :dram                           # 0x14
+  uint32le :unk4                                              # 0xC8
+  uint32le :unk5, :initial_value => 8                         # 0xCC
+  array    :unk6, :type => :uint32le, :initial_length => 256  # 0xD0
+  uint32le :mbr_size                                          # 0x4D0
+  uint32le :part_num                                          # 0x4D4
+  array    :part_items, :type => :aw_sys_para_part,
+           :initial_length => lambda { part_num }             # 0x4D8
+  array    :reserved, :type => :uint32le,
+    :initial_length => lambda { (14 - part_num) * 26 }
+  uint32le :dl_num                                            # 0xA88
+  array    :dl_items, :type => :aw_sys_para_item,
+    :initial_length => lambda { dl_num }                      # 0xA8C
+                                                              # 0xCD2 (if dl_num == 9)
+                                                              # (...) struct of 95 bytes?
+end
+
 # Size 128
 class AWSunxiPartition < BinData::Record
   endian :little
