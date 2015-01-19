@@ -139,14 +139,12 @@ require_relative 'libsparse'
 #    4. FES_TRANSMITE: (:write, :dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
 #    5. FES_TRANSMITE: (:write, :dram): Send 5496 of data at 0x40900000
 #    => (SYS_PARA,...)
-#    6. FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_de_start.fex)
-#    7. FES_TRANSMITE: (:write, :dram): Send 129056 bytes of data at 0x40430000 (fed_nand.axf)
-#    8. FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_de_end.fex)
-#    9. FES_RUN: Run code at 0x40430000, max_para => 49 (fed|has_para)
-#    => PARAMS = [ 0x40900000, 0x40901000, 0x0, 0x0]
+#    6. Write element: (fed_nand.axf, de, :dram), 129056 bytes at 0x40430000
+#    7. FES_RUN: Run code at 0x40430000, max_para => 49 (fed|has_para)
+#    => PARAMS = [ 0x40900000 => "SYS_PARA...", 0x40901000, 0x0, 0x0]
 #    => Init NAND
-#    10.FES_INFO: => return 0x100,(0x00*) (32 bytes)
-#    11.FES_GET_MSG: (address: 0x400) => probably returned data size
+#    8.FES_INFO: => return 0x100,(0x00*) (32 bytes)
+#    9.FES_GET_MSG: (address: 0x400) => probably returned data size
 #    => returns 1024 bytes
 #    ---------- Writing partition start
 #     I.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_cr_start.fex)
@@ -160,42 +158,42 @@ require_relative 'libsparse'
 #     V.FES_TRANSMITE: (:write, :dram): Send 12 bytes of data from 0x40023C00
 #     => Clear AWFESVerifyStatusResponse buffer with 0x00s, optional
 #    ---------- Writing partition end
-#    12.I-V steps for "env.fex", "boot.fex", "system.fex", "recovery.fex"
-#    13.I-V step for "mbr.fex", additional :start & :finish flag set because its 1 chunk
-#    14.FES_UNREG_FED: :address => 0x2
+#    10.Write partition: "env.fex", "boot.fex", "system.fex", "recovery.fex"
+#    11.Writing partition: "mbr.fex", additional :start & :finish flag set because its 1 chunk
+#    12.FES_UNREG_FED: :address => 0x2
 #    => disables nand
 #    ---------- Update boot1
-#    15.Write encoded element: boot1.bin (see I-III), 376832 bytes at 0x40600000
-#    16.Write encoded element: update_boot1.axf, 114352 bytes at 0x40430000
-#    17.FES_RUN: Run code at 0x40430000, max_para => 17 (fet|has_para)
+#    13.Write element: boot1.bin, de (see I-III), 376832 bytes at 0x40600000
+#    14.Write element: update_boot1.axf, de, 114352 bytes at 0x40430000
+#    15.FES_RUN: Run code at 0x40430000, max_para => 17 (fet|has_para)
 #    => PARAMS = [0x40600000, 0x40400000, 0x40410000, 0x00000000]
-#    18.FES_INFO: => return 0x1,(0x00*) (32 bytes) until reponse return 0x100 => success?
-#    19.FES_GET_MSG: (address: 0x400) => probably returned data size
+#    16.FES_INFO: => return 0x1,(0x00*) (32 bytes) until reponse return 0x100 => success?
+#    17.FES_GET_MSG: (address: 0x400) => probably returned data size
 #    => returns 1024 bytes (...)"updateBootxOk000"
 #    ---------- End of update boot1
 #    ---------- Update boot0
-#    20.Write encoded element: boot0.bin 24576 bytes at 0x40600000
-#    21.FES_TRANSMITE: (:write, :dram): Send 5496 bytes of data at 0x40400000
+#    18.Write element: (boot0.bin,de) 24576 bytes at 0x40600000
+#    19.FES_TRANSMITE: (:write, :dram): Send 5496 bytes of data at 0x40400000
 #    => (SYS_PARA,...)
-#    22.FES_TRANSMITE: (:write, :dram): Send 172 bytes of data at 0x40410000
+#    20.FES_TRANSMITE: (:write, :dram): Send 172 bytes of data at 0x40410000
 #    =>  "01 00 01 00 01 01 01 01 01 02 10 00 00 01 00 10..." @todo
-#    23.Write encoded element: update_boot0.axf, 114352 bytes at 0x40430000
-#    24.FES_RUN: Run code at 0x40430000, max_para => 17 (len)
+#    21.Write element: (update_boot0.axf, de), 114352 bytes at 0x40430000
+#    22.FES_RUN: Run code at 0x40430000, max_para => 17 (len)
 #    => PARAMS = [0x40600000, 0x40400000, 0x40410000, 0x00000000]
-#    25.FES_INFO: => return 0x1,(0x00*) (32 bytes) until 0x100 => success?
-#    26.FES_GET_MSG: (address: 0x400) => probably returned data size
+#    23.FES_INFO: => return 0x1,(0x00*) (32 bytes) until 0x100 => success?
+#    24.FES_GET_MSG: (address: 0x400) => probably returned data size
 #    => returns 1024 bytes (...)"updateBootxOk000"
 #    --------- End of update boot0
-#    27.FES_TRANSMITE: (:write, :dram): Send 4 bytes of data at 0x7E04
-#    => 0x1234A5CD
-#    28. Write encoded element (fet_restore.axf)
+#    25.FES_TRANSMITE: (:write, :dram): Send 4 bytes of data at 0x7E04
+#    => 0x1234A5CD (finish flag)
+#    26. Write element (fet_restore.axf, de)
 #    => Run params are 0x00s * 16
 #
-#    --- Writing encoded element
-#    I.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_de_start.fex)
+#    --- Writing element
+#    I.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_XX_start.fex)
 #    II.FES_TRANSMITE: (:write, FLAG): Send X bytes of data at 0x40430000 (FILE)
-#    III.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_de_end.fex)
-#    ---- End of writing encoded element
+#    III.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_XX_end.fex)
+#    ---- End of writing element
 #
 # @example Flash process (A31s) (FES) (boot 2.0)
 #    1. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
