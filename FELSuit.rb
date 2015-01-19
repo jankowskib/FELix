@@ -33,6 +33,24 @@ class FELSuit < FELix
     @structure = fetch_image_structure
   end
 
+  # Write with help of magic_XX_start.fex and magic_xx_end.fex
+  # @param prefix [Symbol] magic prefix (`cr` or `de`)
+  # @param data [String] binary data to write
+  # @param address [Integer] place to write
+  # @param index [Symbol<FESIndex>] one of index (default `:dram`)
+  # @raise [FELError] if failed
+  # @note (Probably) Only usable in legacy images
+  def magic_write(prefix, data, address, index = :dram)
+    start = get_image_data(@structure.item_by_file("magic_#{prefix}_start.fex"))
+    finish = get_image_data(@structure.item_by_file("magic_#{prefix}_end.fex"))
+
+    transmite(:write, :address => 0x40330000, :memory => start)
+    transmite(:write, :address => address, :memory => data, :media_index => media_index)
+    transmite(:write, :address => 0x40330000, :memory => finish)
+  rescue FELError => e
+    raise FELError, "Failed to transmite with magic (#{e})"
+  end
+
   # Flash image to the device
   # @raise error string if something wrong happen
   # @yieldparam [String] status
