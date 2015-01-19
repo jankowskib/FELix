@@ -52,7 +52,6 @@ class FELSuit < FELix
       boot_to_fes(fes, uboot)
       yield "Waiting for reconnection" if block_given?
       # 3. Wait for device reconnection
-      # @todo use hotplug in the future
       sleep(5)
       raise FELError, "Failed to reconnect!" unless reconnect?
       info = get_device_info
@@ -279,7 +278,6 @@ class FELSuit < FELix
       raise FELError, "Cannot read data" unless data
       data = FELHelpers.decrypt(data, :data) if @encrypted
       data
-      # @todo decrypt twofish
     end
   end
 
