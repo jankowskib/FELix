@@ -50,41 +50,6 @@ class Symbol # @visibility private
   end
 end
 
-#Fix endianess bug (N* -> V*) (so much time wasted before I figured it out...)
-class Crypt::RC6
-  def encrypt_block(data) # @visibility private
-    a, b, c, d = *data.unpack('V*')
-    b += @sbox[0]
-    d += @sbox[1]
-    1.upto @rounds do |i|
-      t = lrotate((b * (2 * b + 1)), 5)
-      u = lrotate((d * (2 * d + 1)), 5)
-      a = lrotate((a ^ t), u) + @sbox[2 * i]
-      c = lrotate((c ^ u), t) + @sbox[2 * i + 1]
-      a, b, c, d  =  b, c, d, a
-    end
-    a += @sbox[2 * @rounds + 2]
-    c += @sbox[2 * @rounds + 3]
-    [a, b, c, d].map{|i| i & 0xffffffff}.pack('V*')
-  end
-
-  def decrypt_block(data) # @visibility private
-    a, b, c, d = *data.unpack('V*')
-    c -= @sbox[2 * @rounds + 3]
-    a -= @sbox[2 * @rounds + 2]
-    @rounds.downto 1 do |i|
-      a, b, c, d = d, a, b, c
-      u = lrotate((d * (2 * d + 1)), 5)
-      t = lrotate((b * (2 * b + 1)), 5)
-      c = rrotate((c - @sbox[2 * i + 1]), t) ^ u
-      a = rrotate((a - @sbox[2 * i]), u) ^ t
-    end
-    d -= @sbox[1]
-    b -= @sbox[0]
-    [a, b, c, d].map{|i| i & 0xffffffff}.pack('V*')
-  end
-end
-
 # Contains support methods
 class FELHelpers
   class << self
@@ -280,15 +245,12 @@ class FELHelpers
     # @param key [Symbol] encryption key (:header, :item, :data)
     # @return decryped binary data
     def decrypt(data, key)
-      out = ""
       # Fill block if last chunk is < 16 bytes
       align = 16 - data.bytesize % 16
       if align
         data << "\0" * align
       end
-      data.scan(/.{16}/m) do |m|
-        out << RC6[key].decrypt_block(m)
-      end
+      out = RC6Keys[key].decrypt(data)
       out.byteslice(0...-align)
     end
 

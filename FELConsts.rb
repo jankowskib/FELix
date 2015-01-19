@@ -23,10 +23,10 @@ FELIX_MAX_CHUNK  = 65536
 FELIX_SECTOR = 512
 
 # RC6 keys
-RC6 = {
-  :header => Crypt::RC6.new("\0" * 31 << "i"),
-  :item   => Crypt::RC6.new("\1" * 31 << "m"),
-  :data   => Crypt::RC6.new("\2" * 31 << "g")
+RC6Keys = {
+  :header => RC6.new("\0" * 31 << "i"),
+  :item   => RC6.new("\1" * 31 << "m"),
+  :data   => RC6.new("\2" * 31 << "g")
 }
 
 # Error exit code - everything OK
