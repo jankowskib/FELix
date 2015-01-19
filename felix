@@ -992,18 +992,8 @@ begin
   puts "[OK]".green if dev
 
   case $options[:action]
-  when :device_info # case for FEL_R_VERIFY_DEVICE
-    info = fel.get_device_info
-    info.each_pair do |k, v|
-      print "  #{k}".ljust(25).yellow
-      case k
-      when :board then puts FELHelpers.board_id_to_str(v)
-      when :mode then puts AWDeviceMode.key(v)
-      when :data_flag, :data_length, :data_start_address then puts "0x%08x" % v
-      else
-        puts "#{v}"
-      end
-    end
+  when :device_info
+   print fel.get_device_info.inspect
   when :format
     print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
       $options[:verbose]
@@ -1176,7 +1166,7 @@ begin
         print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
       end
     end
-      puts "[OK]".green
+    puts "[OK]".green
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
     info = fel.get_device_info

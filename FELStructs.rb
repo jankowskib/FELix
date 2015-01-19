@@ -103,6 +103,23 @@ class AWFELVerifyDeviceResponse < BinData::Record # size 32
   uint8    :data_length
   uint32le :data_start_address
   array    :reserved, :type => :uint8, :initial_length => 8
+
+  def inspect
+    out = String.new
+    self.each_pair do |k, v|
+      out << "  #{k}".ljust(25).yellow
+      case k
+      when :board then out << FELHelpers.board_id_to_str(v) << "\n"
+      when :mode then out << AWDeviceMode.key(v) << "\n"
+      when :data_flag, :data_length, :data_start_address
+        out << "0x%08x" % v << "\n"
+      else
+        out << "#{v}" << "\n"
+      end
+    end
+    out
+  end
+
 end
 
 class AWFESVerifyStatusResponse < BinData::Record # size 12
