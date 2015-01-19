@@ -77,7 +77,13 @@ FESCmd = {
   :memset                          => 0x210, # can be used to fill memory with desired value (byte)
   :pmu                             => 0x211, # change voltage setting
   :unseqmem_read                   => 0x212, # unsequenced memory read
-  :unseqmem_write                  => 0x213
+  :unseqmem_write                  => 0x213,
+  # From https://github.com/allwinner-zh/bootloader unavaiable on most tablets <2015 year
+  :fes_reset_cpu				   => 0x214,
+  :low_power_manger 			   => 0x215,
+  :force_erase                     => 0x220,
+  :force_erase_key                 => 0x221,
+  :query_secure                    => 0x230
 }
 
 # Mode returned by FELCmd[:verify_device]
