@@ -51,14 +51,48 @@ class FELSuit < FELix
     raise FELError, "Failed to transmite with magic (#{e})"
   end
 
+  # Flash legacy image to the device
+  # @raise [FELError, FELFatal] if failed
+  # @yieldparam [String] status
+  # @yieldparam [Integer] Percentage status if there's active transfer
+  def flash_legacy
+    raise FELFatal, "Tried to flash legacy file that isn't legacy!" unless legacy?
+    # 1. Let's check device mode
+    info = get_device_info
+    raise FELError, "Failed to get device info. Try to reboot!" unless info
+    # 2. If we're in FEL mode we must firstly boot2fes
+    fes11 = get_image_data(@structure.item_by_file("fes_1-1.fex"))
+    fes12 = get_image_data(@structure.item_by_file("fes_1-2.fex"))
+    fes = get_image_data(@structure.item_by_file("fes.fex"))
+    fes2 = get_image_data(@structure.item_by_file("fes_2.fex"))
+    boot_to_fes_legacy(fes11, fes12, fes, fes2)
+    if info.mode == AWDeviceMode[:fel]
+      yield "Booting to FES" if block_given?
+      boot_to_fes(fes, uboot)
+      yield "Waiting for reconnection" if block_given?
+      # 3. Wait for device reconnection
+      sleep(5)
+      raise FELError, "Failed to reconnect!" unless reconnect?
+      info = get_device_info
+    end
+    # 4. Generate and send SYS_PARA
+    sys_para = ""
+    raise FELFatal, "implement sys_para generation"
+    yield "Sending DRAM config" if block_given?
+    transmite(:write, :address => 0x40900000, :memory => sys_para.to_binary_s)
+    yield "Writing FED" if block_given?
+    magic_write(:de, get_image_data(@structure.item_by_file("fed_nand.axf")),
+      0x40430000)
+    yield "Starting FED" if block_given?
+    run(0x40430000, :fes, [:fed, :has_para])
+  end
+
   # Flash image to the device
-  # @raise error string if something wrong happen
+  # @raise [FELError, FELFatal] if failed
   # @yieldparam [String] status
   # @yieldparam [Integer] Percentage status if there's active transfer
   def flash
-    raise FELError, "Flashing old images is not supported " <<
-      "yet!" unless @structure.item_by_file("u-boot.fex") && @structure.
-      item_by_file("fes1.fex")
+    return flash_legacy if legacy?
     # 1. Let's check device mode
     info = get_device_info
     raise FELError, "Failed to get device info. Try to reboot!" unless info
