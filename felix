@@ -875,7 +875,7 @@ begin
         $options[:file] = f
       end
       opts.on("--tofes image", String, "Switch device into FES mode using" <<
-      " fes1.fex and u-boot.fex from selected firmware image") do |f|
+      " the given firmware image") do |f|
         $options[:action] = :boot2fes
         $options[:file] = f
       end
