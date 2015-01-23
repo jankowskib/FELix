@@ -496,16 +496,36 @@ class FELix
   # Execute code at specified memory
   # @param address [Integer] memory address to read from
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
-  # @raise [String] error name
-  def run(address, mode=:fel)
+  # @param flags [Array<AWRunContext>] zero or more flags (in `:fes` only)
+  # @param args [Array<Integer>] array of max 4 arguments if has_para flag is set
+  # @note `flags` is `max_para` in boot2.0
+  # @raise [FELError, FELFatal]
+  def run(address, mode=:fel, flags = :none, args = nil)
     request = AWFELMessage.new
     request.cmd = FELCmd[:run] if mode == :fel
     request.cmd = FESCmd[:run] if mode == :fes
     request.address = address
+    raise FELFatal, "Cannot use flags in FEL" if flags != :none && mode == :fel
+    if flags.kind_of?(Array)
+      flags.each {|f| request.flags |= AWRunContext[f]}
+    else
+      request.flags |= AWRunContext[flags]
+    end
+
     data = send_request(request.to_binary_s)
     if data == nil
       raise FELError, "Failed to send request (#{request.cmd})"
     end
+
+    # if has_para flag is set we must send them
+    if request.flags & AWRunContext[:has_param] == AWRunContext[:has_param]
+      params = AWFESRunArgs.new(:args => args)
+      data = send_request(params.to_binary_s)
+      if data == nil
+        raise FELError, "Failed to send request (#{request.cmd})"
+      end
+    end
+
     data = recv_request(8)
     if data == nil || data.bytesize != 8
       raise FELError, "Failed to receive device status (data: #{data})"
@@ -514,6 +534,7 @@ class FELix
     if status.state > 0
       raise FELError, "Command failed (Status #{status.state})"
     end
+
   end
 
   # Send raw request and try to read data
