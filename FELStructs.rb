@@ -128,6 +128,11 @@ class AWFESVerifyStatusResponse < BinData::Record # size 12
   int32le  :crc     # also last_error (0 if OK, -1 if fail)
 end
 
+# Used by FES[:run] with has_param flag
+class AWFESRunArgs < BinData::Record # size 16
+  array :args, :type => :uint32le, :initial_length => 4
+end
+
 class AWDRAMData < BinData::Record # size 136?
   string   :magic, :length => 4, :initial_value => "DRAM"
   uint32le :unk
@@ -273,7 +278,7 @@ end
 class AWSysPara < BinData::Record
   string   :magic, :length => 8, :initial_value => "SYS_PARA" # 0x00
   uint32le :unk1, :initial_value => 256                       # 0x08
-  uint32le :eraseflag, :initial_value => 1                   # 0x0C
+  uint32le :eraseflag, :initial_value => 1                    # 0x0C
   uint32le :jtag, :initial_value => 1                         # 0x10 [not sure]
   aw_legacy_system_parameters :dram                           # 0x14
   uint32le :unk4                                              # 0xC8
