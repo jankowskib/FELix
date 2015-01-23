@@ -818,7 +818,7 @@ begin
         end
         exit FELIX_SUCCESS
       end
-      opts.on("--decode path", String, "Decode packets from Wireshark dump") do |f|
+      opts.on("--decode-traffic path", String, "Decode packets from Wireshark dump") do |f|
         $options[:action] = :decode_packets
         $options[:file] = f
         $options[:dont_connect] = true
