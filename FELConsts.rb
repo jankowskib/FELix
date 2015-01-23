@@ -170,7 +170,8 @@ AWImageAttr = {
 }
 
 #FES run types (AWFELMessage->len)
-AWFESRunType = {
+AWRunContext = {
+  :none                           => 0x0,
   :has_param                      => 0x1,
   :fet                            => 0x10,
   :gen_code                       => 0x20,
