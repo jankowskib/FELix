@@ -45,7 +45,7 @@ class FELSuit < FELix
     finish = get_image_data(@structure.item_by_file("magic_#{prefix}_end.fex"))
 
     transmite(:write, :address => 0x40330000, :memory => start)
-    transmite(:write, :address => address, :memory => data, :media_index => media_index)
+    transmite(:write, :address => address, :memory => data, :media_index => index)
     transmite(:write, :address => 0x40330000, :memory => finish)
   rescue FELError => e
     raise FELError, "Failed to transmite with magic (#{e})"
