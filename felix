@@ -955,7 +955,7 @@ begin
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
         $options[:verbose] = true
       end
-      opts.on_tail("--silent", "Don't print banner") do
+      opts.on_tail("-s", "--silent", "Don't print a banner") do
         $options[:silent] = true
       end
   end.parse!
