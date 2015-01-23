@@ -1062,14 +1062,15 @@ begin
     puts "[OK]".green unless $options[:verbose]
   when :write
     file = File.read($options[:file])
-    print ("* #{$options[:mode]}: Read file (#{file.bytesize} bytes" <<
+    print ("* Read file (#{file.bytesize} bytes" <<
     ")").ljust(57) << "\t" unless $options[:verbose]
     puts "[OK]".green unless $options[:verbose]
     if $options[:item]
       # Read all data from MBR
+      $options[:mode] = :fes
       print "* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
-      data = fel.read(0, 16384, :none, :fes) do |b|
-        print "\r* Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+      data = fel.read(0, 16384, :none, $options[:mode]) do |b|
+        print "\r* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
         percent = (b * 100) / 16384
         print "#{percent}%".ljust(4).light_blue unless percent == 100
       end
@@ -1081,8 +1082,8 @@ begin
       real_len = part.lenlo * FELIX_SECTOR
       raise FELError, "File is too big (partition size is " <<
         "#{real_len})" if file.bytesize > real_len
-      $options[:mode] = :fes
     end
+    # @todo handle sparse images
     fel.write($options[:address], file, $options[:tags], $options[:mode]) do |b|
       print ("\r* #{$options[:mode]}: Writing data (" <<
       "#{b}/#{file.bytesize} bytes)").ljust(57) << "\t" unless $options[:verbose]
@@ -1187,7 +1188,7 @@ begin
         print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
       end
     end
-    puts "[OK]".green
+      puts "[OK]".green
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
     info = fel.get_device_info
