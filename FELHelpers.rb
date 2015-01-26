@@ -217,6 +217,7 @@ class FELHelpers
       print "* Processing..."
       packets = Array.new
       contents = File.read(file)
+      header_size = nil
       i = 0
       contents.scan(/^.*?{(.*?)};/m) do |packet|
         i+=1
@@ -225,7 +226,11 @@ class FELHelpers
         print "\r* Processing..." << "#{i}".yellow << " found"
         #Strip USB header
         begin
-          packets << hstr.to_byte_string[27..-1] if hstr.to_byte_string[27..-1] != nil
+          #try to guess header size
+          header_size = hstr.to_byte_string.index('AWUC') unless header_size
+          header_size = hstr.to_byte_string.index('AWUS') unless header_size
+          next unless header_size
+          packets << hstr.to_byte_string[header_size..-1] if hstr.to_byte_string[header_size..-1] != nil
         rescue RuntimeError => e
           puts "Error : (#{e.message}) at #{e.backtrace[0]}"
           puts "Failed to decode packet: (#{hstr.length / 2}), #{hstr}"
