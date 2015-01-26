@@ -566,7 +566,6 @@ class FELix
   end
 
   # Send a FES_INFO request (get code execution status)
-  # @param req [Integer] one of #FESCmd or #FELCmd
   # @raise [FELError] error name
   # @return [String] device response (32 bytes)
   def info
@@ -1044,9 +1043,9 @@ begin
     print fel.get_device_status.inspect
   when :info
     print "* Getting info".ljust(57) << "\t" unless $options[:verbose]
-    status = info
+    status = fel.info
     puts "[OK]".green unless $options[:verbose]
-    puts "Response" << Hexdump.dump(status)
+    Hexdump.dump(status)
   when :format
     print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
       $options[:verbose]
