@@ -28,7 +28,7 @@ class BinData::Record
   def pp
     self.each_pair do |k ,v|
       print "  #{k}".yellow.ljust(40)
-      if v.instance_of? BinData::String
+      if v.instance_of?(BinData::String) || v.instance_of?(BinData::Array)
         puts v.inspect
       else
         puts "0x%08x" % v
