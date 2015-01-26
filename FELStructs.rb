@@ -133,6 +133,11 @@ class AWFESRunArgs < BinData::Record # size 16
   array :args, :type => :uint32le, :initial_length => 4
 end
 
+# Used by FES[:info]
+class AWFESInfoResponse < BinData::Record # size 32
+  array :response, :type => :uint32le, :initial_length => 8
+end
+
 class AWDRAMData < BinData::Record # size 136?
   string   :magic, :length => 4, :initial_value => "DRAM"
   uint32le :unk
