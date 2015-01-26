@@ -110,7 +110,7 @@ class AWFELVerifyDeviceResponse < BinData::Record # size 32
       out << "  #{k}".ljust(25).yellow
       case k
       when :board then out << FELHelpers.board_id_to_str(v) << "\n"
-      when :mode then out << AWDeviceMode.key(v) << "\n"
+      when :mode then out << AWDeviceMode.key(v).to_s << "\n"
       when :data_flag, :data_length, :data_start_address
         out << "0x%08x" % v << "\n"
       else
