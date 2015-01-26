@@ -1045,7 +1045,7 @@ begin
     print "* Getting info".ljust(57) << "\t" unless $options[:verbose]
     status = fel.info
     puts "[OK]".green unless $options[:verbose]
-    Hexdump.dump(status)
+    AWFESInfoResponse.read(status).pp
   when :format
     print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
       $options[:verbose]
