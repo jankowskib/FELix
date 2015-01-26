@@ -565,6 +565,28 @@ class FELix
     output
   end
 
+  # Send a FES_INFO request (get code execution status)
+  # @param req [Integer] one of #FESCmd or #FELCmd
+  # @raise [FELError] error name
+  # @return [String] device response (32 bytes)
+  def info
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:info]
+    data = send_request(request.to_binary_s)
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.bytesize != 13
+
+    output = recv_request(32)
+
+    status = recv_request(8)
+    raise FELError, "Failed to get device status (data: #{status})" if status.
+    bytesize != 8
+    status = AWFELStatusResponse.read(status)
+    raise FELError, "Command failed (Status #{status.state})" if status.
+    state > 0
+    output
+  end
+
   # Verify last operation status
   # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @return [AWFESVerifyStatusResponse] device status
@@ -927,6 +949,7 @@ begin
          $options[:file] = f
       end
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
+      opts.on("--info", "Get code exection status") { $options[:action] = :info }
 
       opts.separator "\n* Options".light_blue.underline
       opts.on("-d", "--device num", Integer,
@@ -1019,6 +1042,11 @@ begin
   case $options[:action]
   when :device_status
     print fel.get_device_status.inspect
+  when :info
+    print "* Getting info".ljust(57) << "\t" unless $options[:verbose]
+    status = info
+    puts "[OK]".green unless $options[:verbose]
+    puts "Response" << Hexdump.dump(status)
   when :format
     print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
       $options[:verbose]
