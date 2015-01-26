@@ -189,7 +189,7 @@ class FELHelpers
               puts " (0x%.2X): "  % p.cmd << "#{packet.to_hex_string[0..46]}"
             else
               print "\n"
-              Hexdump.dump(packet[0..63])
+              $options[:verbose] ? Hexdump.dump(packet) : Hexdump.dump(packet[0..63])
             end
           end
         elsif packet.length == 8
@@ -198,7 +198,7 @@ class FELHelpers
           "mark #{p.mark}, tag #{p.tag}, state #{p.state}"
         else
           print "\n"
-          Hexdump.dump(packet[0..63])
+          $options[:verbose] ? Hexdump.dump(packet) : Hexdump.dump(packet[0..63])
         end
       end
       dir
