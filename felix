@@ -1189,7 +1189,7 @@ begin
         FileUtils.mkdir_p(path) unless File.exists?(path)
         File.open("#{path}\\#{file}", "w") do |f|
           written = 0
-          fel.get_image_data(it, 8192, item.file_len_low) do |d|
+          fel.get_image_data(it, 8192, it.file_len_low) do |d|
             f.write(d)
             written+=d.bytesize
             percent = written * 100 / it.file_len_low
