@@ -352,7 +352,7 @@ class FELix
   # Get device status
   # @return [AWFELVerifyDeviceResponse] device status
   # @raise [String] error name
-  def get_device_info
+  def get_device_status
     data = send_request(AWFELStandardRequest.new.to_binary_s)
     if data == nil
       raise FELError, "Failed to send request (data: #{data})"
@@ -883,7 +883,7 @@ begin
         $options[:action] = :boot2fes
         $options[:file] = f
       end
-      opts.on("--info", "Get device info") { $options[:action] = :device_info }
+      opts.on("--status", "Get device status") { $options[:action] = :device_status }
       opts.on("--run", "Execute code. Use with --address") do
         $options[:action] = :run
       end
@@ -1017,8 +1017,8 @@ begin
   puts "[OK]".green if dev
 
   case $options[:action]
-  when :device_info
-   print fel.get_device_info.inspect
+  when :device_status
+    print fel.get_device_status.inspect
   when :format
     print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
       $options[:verbose]
@@ -1195,7 +1195,7 @@ begin
       puts "[OK]".green
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
-    info = fel.get_device_info
+    info = fel.get_device_status
     raise FELError, "Device already in FES mode" if info.mode == AWDeviceMode[:fes]
     puts "[OK]".ljust(4).green unless $options[:verbose]
     print "* Booting to FES".ljust(57) << "\t" unless $options[:verbose]

@@ -58,7 +58,7 @@ class FELSuit < FELix
   def flash_legacy
     raise FELFatal, "Tried to flash legacy file that isn't legacy!" unless legacy?
     # 1. Let's check device mode
-    info = get_device_info
+    info = get_device_status
     raise FELError, "Failed to get device info. Try to reboot!" unless info
     # 2. If we're in FEL mode we must firstly boot2fes
     fes11 = get_image_data(@structure.item_by_file("fes_1-1.fex"))
@@ -73,7 +73,7 @@ class FELSuit < FELix
       # 3. Wait for device reconnection
       sleep(5)
       raise FELError, "Failed to reconnect!" unless reconnect?
-      info = get_device_info
+      info = get_device_status
     end
     # 4. Generate and send SYS_PARA
     sys_para = ""
@@ -94,7 +94,7 @@ class FELSuit < FELix
   def flash
     return flash_legacy if legacy?
     # 1. Let's check device mode
-    info = get_device_info
+    info = get_device_status
     raise FELError, "Failed to get device info. Try to reboot!" unless info
     # 2. If we're in FEL mode we must firstly boot2fes
     uboot = get_image_data(@structure.item_by_file("u-boot.fex"))
@@ -106,7 +106,7 @@ class FELSuit < FELix
       # 3. Wait for device reconnection
       sleep(5)
       raise FELError, "Failed to reconnect!" unless reconnect?
-      info = get_device_info
+      info = get_device_status
     end
     # 4. Write MBR
     # @todo add format parameter
