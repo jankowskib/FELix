@@ -500,7 +500,7 @@ class FELix
   # @param address [Integer] memory address to read from
   # @param mode [AWDeviceMode] operation mode `:fel` or `:fes`
   # @param flags [Array<AWRunContext>] zero or more flags (in `:fes` only)
-  # @param args [Array<Integer>] array of max 4 arguments if has_para flag is set
+  # @param args [Array<Integer>] array of arguments if has_para flag is set
   # @note `flags` is `max_para` in boot2.0
   # @raise [FELError, FELFatal]
   def run(address, mode=:fel, flags = :none, args = nil)
