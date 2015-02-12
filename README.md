@@ -72,6 +72,11 @@ Howtos
 
           $ felix --read boot.img --item boot
 
+  5. Disable NAND
+
+          $ felix --nand off
+
+
 * Write new `boot0`/`boot1` (**Warning**: this may brick your device if you write incorrect file)
 
   1. Get firmware image
