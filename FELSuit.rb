@@ -75,8 +75,42 @@ class FELSuit < FELix
       info = get_device_status
     end
     # 4. Generate and send SYS_PARA
-    sys_para = ""
-    raise FELFatal, "implement sys_para generation"
+    cfg = ""
+    leg = false
+    if @structure.item_by_file("sys_config1.fex")
+      cfg = get_image_data(@structure.item_by_file("sys_config1.fex"))
+      cfg << get_image_data(@structure.item_by_file("sys_config.fex"))
+      leg = true
+    else
+      cfg = get_image_data(@structure.item_by_file("sys_config.fex"))
+    end
+
+    sys_para = AWSysPara.new
+    sys_para.dram = FELHelpers.create_dram_config(cfg, leg)
+    cfg_ini = IniFile.new( :content => cfg, :encoding => "UTF-8")
+    sys_para.part_num = cfg_ini[:part_num]["num"]
+    sys_para.part_num.times do |n|
+      sys.part_items[n] = AWSysParaPart.new(
+      {
+        :address_high => cfg_ini["partition#{n}"]["size_hi"],
+        :address_low => cfg_ini["partition#{n}"]["size_lo"],
+        :classname => cfg_ini["partition#{n}"]["class_name"],
+        :name => cfg_ini["partition#{n}"]["name"],
+        :user_type => cfg_ini["partition#{n}"]["user_type"],
+        :ro => cfg_ini["partition#{n}"]["ro"]
+      })
+    end
+    sys_para.dl_num = cfg_ini[:down_num]["down_num"]
+    sys_para.dl_num.times do |n|
+      sys_para.dl_items[n] = AWSysParaItem.new(
+      {
+        :name => cfg_ini["download#{n}"]["part_name"],
+        :filename => cfg_ini["download#{n}"]["pkt_name"],
+        :encrypt => cfg_ini["download#{n}"]["encrypt"],
+        :verify_filename => cfg_ini["download#{n}"]["verify_file"],
+      })
+    end
+
     yield "Sending DRAM config" if block_given?
     transmite(:write, :address => 0x40900000, :memory => sys_para.to_binary_s)
     yield "Writing FED" if block_given?
