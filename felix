@@ -633,8 +633,7 @@ class FELix
     raise FELError, "Invalid parameter state (#{how})" unless [:on, :off].
       include? how
     request = AWFELStandardRequest.new
-    request.cmd = FESCmd[:flash_set_on] if how == :on
-    request.cmd = FESCmd[:flash_set_off] if how == :off
+    request.cmd = how == :on ? FESCmd[:flash_set_on] : FESCmd[:flash_set_off]
 
     data = send_request(request.to_binary_s)
     raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
