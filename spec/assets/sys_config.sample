@@ -1,0 +1,196 @@
+;---------------------------------------------------------------------------------------------------------
+; ËµĂ÷Łş ˝Ĺ±ľÖĐµÄ×Ö·ű´®Çř·Ö´óĐˇĐ´Ł¬ÓĂ»§żÉŇÔĐŢ¸Ä"="şóĂćµÄĘýÖµŁ¬µ«ĘÇ˛»ŇŞĐŢ¸ÄÇ°ĂćµÄ×Ö·ű´®
+;---------------------------------------------------------------------------------------------------------
+
+[platform]
+chip=0x02000000
+pid =0x02000000
+sid =0x02000100
+bid =0x80
+
+eraseflag   = 1
+jtag        = 1
+
+[fex_misc]
+restore = 0
+
+;------------------------------------------------------------------------------------------
+;                                      ĎµÍłĹäÖĂ
+;------------------------------------------------------------------------------------------
+
+
+
+
+;--------------------------------------------------------------------------------------------------
+;                                   ąĚĽţĎÂÔŘ˛ÎĘýĹäÖĂ
+;--------------------------------------------------------------------------------------------------
+;-----------------------------------------------------------------------------------------
+;										·ÖÇřĹäÖĂąÜŔí
+;-----------------------------------------------------------------------------------------
+;****************************************************
+;    mbrµÄ´óĐˇ, ŇÔKbyteÎŞµĄÎ»
+;****************************************************
+[mbr]
+size = 16384
+
+;********************************************************************************************************
+;                                              ·ÖÇřĹäÖĂ
+;
+;  [part_num]
+;      num     = 2              ; //ÓĐ2¸ö·ÖÇř
+;      part0   = partiton0      ; //part0µÄĐĹĎ˘´ć·ĹÔÚpartiton0Ŕď
+;      parti   = partitoni      ; //partiµÄĐĹĎ˘´ć·ĹÔÚpartitoniŔď
+;
+;  partition ¶¨Ňĺ·¶Ŕý:
+;    [partition2]               ; //µÚ2¸ö·ÖÇř
+;    class_name  = DISK         ; //Éč±¸ŔŕĂű, ČçŁş"DISK"ˇŁ
+;    name        = USERFS2      ; //Éč±¸˝ÚµăĂű.
+;    size_hi     = 0            ; //·ÖÇř´óĐˇµÄ¸ß32Î», µĄÎ»: Kbyte.
+;    size_lo     = 32           ; //·ÖÇř´óĐˇµÄµÍ32Î», µĄÎ»: Kbyte.
+;
+; ×˘Łş1ˇ˘nameÎ¨Ň», ˛»ÔĘĐíÍ¬Ăű
+;     2ˇ˘class_nameşÍname×î´ó12¸ö×Ö·ű
+;     3ˇ˘size_hi + size_lo = 0, ±íĘľ´Ë·ÖÇř˛»´ćÔÚ
+;     4ˇ˘ÎŞÁË°˛Č«şÍĐ§ÂĘżĽÂÇŁ¬·ÖÇř´óĐˇ×îşĂ±ŁÖ¤ÎŞ16M×Ö˝ÚµÄŐűĘý±¶
+;********************************************************************************************************
+[part_num]
+num     = 9
+
+;------------------------------>nanda, known as bootfs before, includes boot.axf u-boot.bin etc...
+[partition0]
+    class_name  = DISK
+    name        = bootloader
+    size_hi     = 0
+    size_lo     = 16384
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nandb, enviroment for u-boot
+[partition1]
+    class_name  = DISK
+    name        = env
+    size_hi     = 0
+    size_lo     = 16384
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nandc, kernel and ramdisk
+[partition2]
+    class_name  = DISK
+    name        = boot
+    size_hi     = 0
+    size_lo     = 32768
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nandd, android real rootfs
+[partition3]
+    class_name  = DISK
+    name        = system
+    size_hi     = 0
+    size_lo     = 524288
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nande, user data
+[partition4]
+    class_name  = DISK
+    name        = data
+    size_hi     = 0
+    size_lo     = 1228800
+    user_type   = 1
+    ro  	      = 0
+
+;------------------------------>nandf, misc
+[partition5]
+    class_name  = DISK
+    name        = misc
+    size_hi     = 0
+    size_lo     = 16384
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nandg, for recovery
+[partition6]
+    class_name  = DISK
+    name        = recovery
+    size_hi     = 0
+    size_lo     = 32768
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nandh, android app cache
+[partition7]
+    class_name  = DISK
+    name        = cache
+    size_hi     = 0
+    size_lo     = 327680
+    user_type   = 0
+    ro          = 0
+
+;------------------------------>nandi, data image backup
+[partition8]
+    class_name  = DISK
+    name        = databk
+    size_hi     = 0
+    size_lo     = 262144
+    user_type   = 0
+    ro          = 0
+
+;********************************************************************************************************************
+;                     ąĚĽţ°üĎÂÔŘÎ»ÖĂ Łş °ŃÄł¸öąĚĽţ°üĎÂÔŘµ˝Ö¸¶¨·ÖÇř, ĎÂÔŘ´ÎĘý×î´óÎŞ7´Î
+;
+;[downloadi]                                //ąĚĽţ°ü0ĎÂÔŘÎ»ÖĂ
+;    part_name      = SYSDATAFS             //·ÖÇřĂű
+;    pkt_name       = ROOTFS_000000000      //ąĚĽţ°üĂűłĆ
+;    verify_file    = VERIFY_000000000      //ĐŁŃéÎÄĽţĂűłĆ
+;
+; ×˘Łş1ˇ˘ downloadi ±íĘľµÚi´ÎĎÂÔŘąĚĽţ, download Î¨Ň», Çë˛»ŇŞËćŇâĐŢ¸Ä
+;     2ˇ˘ part_num ÎŞ·ÖÇřşĹ, Ľ´ąĚĽţĎÂÔŘµÄÎ»ÖĂ
+;     3ˇ˘ pkt_name ąĚĽţ°üĂűłĆ. ×î´ół¤¶ČÎŞ16byte, ÇŇĂűłĆąĚ¶¨. żÉ˛ÎżĽ"..\\ePDK\workspace\suni\liveclick\image.cfg"
+;     4ˇ˘ verify_file ÎŞĐŁŃéÎÄĽţĂűłĆ. żÉ˛ÎżĽ"..\\ePDK\workspace\suni\liveclick\image.cfg"
+;     5ˇ˘ pkt_name ÄÚČÝ˛»Ěî, ±íĘľ±ľ´ÎĎÂÔŘČˇĎű.  verify_fileÄÚČÝ˛»Ěî, ±íĘľ˛»ĐčŇŞĐŁŃé.
+;
+; ČçŁşŇŞ°ŃąĚĽţ°üzdisk.img, ĎÂÔŘÔÚµ˝SYSDATAFS·ÖÇřŔďˇŁĆäĹäÖĂÎŞŁş
+; [download0]
+;      part_name   = SYSDATAFS
+;      pkt_name     = ROOTFS_000000000
+;      verify_file  = VERIFY_000000000
+;********************************************************************************************************************
+[down_num]
+down_num    = 6
+
+[download0]
+part_name   = bootloader
+pkt_name    = BOOTLOADER_00000
+encrypt     = 0 
+verify_file = VBOOTLOADER_0000
+
+[download1]
+part_name   = env
+pkt_name    = ENVIROMENT_00000
+encrypt     = 0 
+verify_file = VENVIROMENT_0000
+
+[download2]
+part_name   = boot
+pkt_name    = BOOT_00000000000
+encrypt     = 0
+verify_file = VBOOT_0000000000
+   
+[download3]      
+part_name   = system
+pkt_name    = SYSTEM_000000000
+encrypt     = 0
+verify_file = VSYSTEMFS_000000
+
+[download4]  
+part_name   = recovery
+pkt_name    = RECOVERY_0000000
+encrypt     = 0  
+verify_file = VRECOVERYFS_0000
+
+[download5]
+part_name   = UDISK
+pkt_name    = DISKFS_000000000
+encrypt     = 0
