@@ -586,6 +586,29 @@ class FELix
     output
   end
 
+  # Send a FES_GET_MSG request (get code execution status string)
+  # @param len [Integer] length of requested data
+  # @raise [FELError] error name
+  # @return [String] device response (default 1024 bytes)
+  def get_msg(len = 1024)
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:get_msg]
+    request.address = len
+    data = send_request(request.to_binary_s)
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.bytesize != 13
+
+    output = recv_request(len)
+
+    status = recv_request(8)
+    raise FELError, "Failed to get device status (data: #{status})" if status.
+    bytesize != 8
+    status = AWFELStatusResponse.read(status)
+    raise FELError, "Command failed (Status #{status.state})" if status.
+    state > 0
+    output
+  end
+
   # Verify last operation status
   # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @return [AWFESVerifyStatusResponse] device status
