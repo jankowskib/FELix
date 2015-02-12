@@ -50,8 +50,27 @@ describe AWSysParaItem do
     expect(para.name).to eq("system")
     expect(para.filename).to eq("SYSTEM_FEX000000")
     expect(para.verify_filename).to eq("VSYSTEM_FEX00000")
-
   end
+
+  it "generates valid structure from sys_config.fex" do
+    sys_config = File.read("./spec/assets/sys_config.sample")
+    valid_parts = File.read("./spec/assets/sys_para.sample", 6*97, 0xA8C) # 6 items
+    parts = BinData::Array.new(:type => :aw_sys_para_item, :initial_length => 6)
+
+    cfg_ini = IniFile.new( :content => sys_config, :encoding => "UTF-8")
+    6.times do |n|
+      parts[n] = AWSysParaItem.new(
+      {
+        :name => cfg_ini["download#{n}"]["part_name"],
+        :filename => cfg_ini["download#{n}"]["pkt_name"],
+        :encrypt => cfg_ini["download#{n}"]["encrypt"],
+        :verify_filename => cfg_ini["download#{n}"]["verify_file"],
+      })
+    end
+
+    expect(parts.to_binary_s).to eq(valid_parts)
+  end
+
 end
 
 describe AWSysParaPart do
@@ -96,6 +115,28 @@ describe AWSysParaPart do
     expect(para.user_type).to eq(0)
     expect(para.ro).to eq(0)
   end
+
+  it "generates valid structure from sys_config.fex" do
+    sys_config = File.read("./spec/assets/sys_config.sample")
+    valid_parts = File.read("./spec/assets/sys_para.sample", 9*104, 0x4D8) # 9 partitions
+    parts = BinData::Array.new(:type => :aw_sys_para_part, :initial_length => 9)
+
+    cfg_ini = IniFile.new( :content => sys_config, :encoding => "UTF-8")
+    9.times do |n|
+      parts[n] = AWSysParaPart.new(
+      {
+        :address_high => cfg_ini["partition#{n}"]["size_hi"],
+        :address_low => cfg_ini["partition#{n}"]["size_lo"],
+        :classname => cfg_ini["partition#{n}"]["class_name"],
+        :name => cfg_ini["partition#{n}"]["name"],
+        :user_type => cfg_ini["partition#{n}"]["user_type"],
+        :ro => cfg_ini["partition#{n}"]["ro"]
+      })
+    end
+
+    expect(parts.to_binary_s).to eq(valid_parts)
+  end
+
 end
 
 describe AWSysPara do
@@ -138,9 +179,9 @@ describe AWSysPara do
         :verify_filename => cfg_ini["download#{n}"]["verify_file"],
       })
     end
-    sys.dl_items.each {|i| i.pp}
+
     # expect we created the same struct as binary one
     expect(sys.to_binary_s.bytesize).to eq(5496)
-    expect(sys.to_binary_s.hash).to eq(valid_para.hash)
+    expect(sys.to_binary_s).to eq(valid_para.b)
   end
 end

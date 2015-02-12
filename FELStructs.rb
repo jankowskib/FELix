@@ -283,8 +283,8 @@ end
 # size 96
 class AWSysParaUnk < BinData::Record
   endian :little
-  array :unk, :type => :uint32, :initial_length => 23
-  uint32 :one, :initial_value => 1
+  array :unk, :type => :uint32, :initial_length => 24
+  uint8 :one, :initial_value => 1
 end
 
 # size 5496, send in FES mode (boot1.0 only) as param to FED
@@ -297,7 +297,7 @@ class AWSysPara < BinData::Record
   uint32le :unk4                                              # 0xC8
   uint32le :unk5, :initial_value => 8                         # 0xCC
   array    :unk6, :type => :uint32le, :initial_length => 256  # 0xD0
-  uint32le :mbr_size                                          # 0x4D0
+  uint32le :mbr_size, :initial_value => 16384                 # 0x4D0
   uint32le :part_num                                          # 0x4D4
   array    :part_items, :type => :aw_sys_para_part,
            :initial_length => lambda { part_num }             # 0x4D8
@@ -308,9 +308,9 @@ class AWSysPara < BinData::Record
     :initial_length => lambda { dl_num }                      # 0xA8C
                                                               # 0xCD2 (if dl_num == 9)
                                                               # (...) struct of 96 bytes?
-  array    :unk7, :type => :aw_sys_para_unk, 
-    :initial_length => 23
-  array    :unk8, :type => :uint8le, :initial_length => 6     # 0x1572
+  array    :unk7, :type => :aw_sys_para_unk,                  # sizeof 2214
+    :initial_length => 8
+  array    :unk8, :type => :uint8le, :initial_length => 1438 
 end
 
 # Size 128
