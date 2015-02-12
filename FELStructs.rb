@@ -279,6 +279,14 @@ class AWSysParaItem < BinData::Record
   uint8  :encrypt, :initial_value => 0
 end
 
+
+# size 96
+class AWSysParaUnk < BinData::Record
+  endian :little
+  array :unk, :type => :uint32, :initial_length => 23
+  uint32 :one, :initial_value => 1
+end
+
 # size 5496, send in FES mode (boot1.0 only) as param to FED
 class AWSysPara < BinData::Record
   string   :magic, :length => 8, :initial_value => "SYS_PARA" # 0x00
@@ -299,7 +307,10 @@ class AWSysPara < BinData::Record
   array    :dl_items, :type => :aw_sys_para_item,
     :initial_length => lambda { dl_num }                      # 0xA8C
                                                               # 0xCD2 (if dl_num == 9)
-                                                              # (...) struct of 95 bytes?
+                                                              # (...) struct of 96 bytes?
+  array    :unk7, :type => :aw_sys_para_unk, 
+    :initial_length => 23
+  array    :unk8, :type => :uint8le, :initial_length => 6     # 0x1572
 end
 
 # Size 128
