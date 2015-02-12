@@ -1201,7 +1201,16 @@ begin
     end
   when :generate_dram
     print "* Generating DRAM".ljust(57) << "\t"
-    dram = fel.create_dram_config
+    cfg = ""
+    leg = false
+    if fel.structure.item_by_file("sys_config1.fex")
+      cfg = fel.get_image_data(fel.structure.item_by_file("sys_config1.fex"))
+      cfg << fel.get_image_data(fel.structure.item_by_file("sys_config.fex"))
+      leg = true
+    else
+      cfg = fel.get_image_data(fel.structure.item_by_file("sys_config.fex"))
+    end
+    dram = FELHelpers.create_dram_config(cfg, leg)
     puts "[OK]".ljust(4).green
     dram.pp
   when :decode_packets
