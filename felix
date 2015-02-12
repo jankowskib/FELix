@@ -609,6 +609,26 @@ class FELix
     output
   end
 
+  # Send a FES_UNREG_FED request (detach storage)
+  # @param type [FESIndex] storage type
+  # @raise [FELError] error name
+  # @return [String] device response (default 1024 bytes)
+  def unreg_fed(type = :nand)
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:get_msg]
+    request.address = FESIndex[type]
+    data = send_request(request.to_binary_s)
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.bytesize != 13
+
+    status = recv_request(8)
+    raise FELError, "Failed to get device status (data: #{status})" if status.
+    bytesize != 8
+    status = AWFELStatusResponse.read(status)
+    raise FELError, "Command failed (Status #{status.state})" if status.
+    state > 0
+  end
+
   # Verify last operation status
   # @param tags [Symbol, Array<AWTags>] operation tag (zero or more of AWTags)
   # @return [AWFESVerifyStatusResponse] device status
