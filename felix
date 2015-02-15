@@ -322,7 +322,7 @@ class FELix
     puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
     r3
   rescue => e
-    raise e, "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
+    raise FELFatal, "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
     " (" << e.message << ")"
   end
 
@@ -346,7 +346,7 @@ class FELix
     FELHelpers.debug_packet(response, :read) if $options[:verbose]
     recv_data
   rescue => e
-    raise e, "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
+    raise FELFatal, "Failed to receive ".red << "#{len}".yellow << " bytes".red <<
     " (" << e.message << ")"
   end
 
