@@ -63,11 +63,14 @@ end
 class SparseImage
 
   # Check sparse image validity
-  # @param data [File] image handle
+  # @param data [IO] image handle
   # @param offset [Integer] file offset
   # @raise [SparseError] if fail
   def initialize(data, offset = 0)
     @file = data
+    if !(@file.class <= IO) && !@file.instance_of?(StringIO)
+      raise SparseError, "Argument must be (sub)class of IO"
+    end
     @chunks = []
     @offset = offset
     @file.seek(@offset, IO::SEEK_SET)

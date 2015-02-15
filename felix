@@ -25,6 +25,7 @@ require 'rc6'
 require 'thread'
 require 'inifile'
 require 'fileutils'
+require 'stringio'
 
 require_relative 'FELConsts'
 require_relative 'FELStructs'
@@ -1138,14 +1139,34 @@ begin
     print ("* Read file (#{file.bytesize} bytes" <<
     ")").ljust(57) << "\t" unless $options[:verbose]
     puts "[OK]".green unless $options[:verbose]
+    begin
+      sparse = SparseImage.new(StringIO.new(file))
+      print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
+      i = 0
+      unsparsed = String.new
+      sparse.each_chunk do |chunk|
+        i+=1
+        print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
+        percent =  (i * 100) / sparse.count_chunks
+        print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
+        unsparsed << chunk
+      end
+      puts "[OK]".green unless $options[:verbose]
+      file = unsparsed
+    rescue SparseError => e
+    end
     if $options[:item]
       # Read all data from MBR
       $options[:mode] = :fes
       print "* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
-      data = fel.read(0, 16384, :none, $options[:mode]) do |b|
-        print "\r* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
-        percent = (b * 100) / 16384
-        print "#{percent}%".ljust(4).light_blue unless percent == 100
+      begin
+        data = fel.read(0, 16384, :none, $options[:mode]) do |b|
+          print "\r* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+          percent = (b * 100) / 16384
+          print "#{percent}%".ljust(4).light_blue unless percent == 100
+        end
+      rescue FELFatal => e
+        raise FELFatal, "\nFailed to get device MBR. Did you enable NAND access? (--nand)"
       end
       mbr = AWMBR.read(data)
       part = mbr.part_by_name($options[:item])
@@ -1156,7 +1177,6 @@ begin
       raise FELError, "File is too big (partition size is " <<
         "#{real_len})" if file.bytesize > real_len
     end
-    # @todo handle sparse images
     fel.write($options[:address], file, $options[:tags], $options[:mode]) do |b|
       print ("\r* #{$options[:mode]}: Writing data (" <<
       "#{b}/#{file.bytesize} bytes)").ljust(57) << "\t" unless $options[:verbose]

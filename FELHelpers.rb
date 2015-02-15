@@ -14,6 +14,13 @@
 #   limitations under the License.
 #
 
+# Fix for bytesize function
+class StringIO
+  def bytesize
+    size
+  end
+end
+
 # Change the way library allocs memory to avoid nasty memory segmentation
 class LIBUSB::Transfer
   # Allocate #FELIX_MAX_CHUNK bytes of data buffer for input transfer.
