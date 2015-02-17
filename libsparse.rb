@@ -82,6 +82,8 @@ class SparseImage
     end
   rescue BinData::ValidityError => e
     raise SparseError, "Not a sparse file (#{e})"
+  rescue => e
+    raise SparseError, "Initialize error (#{e})"
   end
 
   # Dump decompressed image
