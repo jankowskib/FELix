@@ -310,7 +310,7 @@ class AWSysPara < BinData::Record
                                                               # (...) struct of 96 bytes?
   array    :unk7, :type => :aw_sys_para_unk,                  # sizeof 2214
     :initial_length => 8
-  array    :unk8, :type => :uint8le, :initial_length => 1438 
+  array    :unk8, :type => :uint8le, :initial_length => 1438
 end
 
 # Size 128
@@ -636,7 +636,7 @@ class AWImage < BinData::Record
   # @return [AWImageItemV1, AWImageItemV3, nil] first item if found, else nil
   def item_by_file(filename)
     item = self.item.select do |it|
-      it.path.match(/(?:.*\\)?(.+)$/)[1] == filename
+      it.path.match(/.*(?:\\|\/|^)(.+)$/)[1] == filename
     end
     item.first if item
   end
