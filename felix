@@ -945,6 +945,13 @@ begin
       opts.on("--tofes image", String, "Switch device into FES mode using" <<
       " the given firmware image") do |f|
         $options[:action] = :boot2fes
+        $options[:dest] = :usb_product
+        $options[:file] = f
+      end
+      opts.on("--boot image", String, "Boot device using fes & u-boot from" <<
+      " the given firmware image") do |f|
+        $options[:action] = :boot2fes
+        $options[:dest] = :boot
         $options[:file] = f
       end
       opts.on("--status", "Get device status") { $options[:action] = :device_status }
@@ -1296,13 +1303,13 @@ begin
     info = fel.get_device_status
     raise FELError, "Device already in FES mode" if info.mode == AWDeviceMode[:fes]
     puts "[OK]".ljust(4).green unless $options[:verbose]
-    print "* Booting to FES".ljust(57) << "\t" unless $options[:verbose]
+    print "* Setting work mode to: #{$options[:dest]}".ljust(57) << "\t" unless $options[:verbose]
     item_uboot = fel.structure.item_by_file("u-boot.fex")
     item_fes = fel.structure.item_by_file("fes1.fex")
     if item_uboot && item_fes
       uboot = fel.get_image_data(item_uboot)
       fes = fel.get_image_data(item_fes)
-      fel.boot_to_fes(fes, uboot)
+      fel.boot_to_fes(fes, uboot, $options[:dest])
     else
       item_fes11 = fel.structure.item_by_file("fes_1-1.fex")
       item_fes12 = fel.structure.item_by_file("fes_1-2.fex")
@@ -1310,6 +1317,8 @@ begin
       item_fes2 = fel.structure.item_by_file("fes_2.fex")
       raise FELError, "Failed to get required items from image" unless (
         item_fes11 && item_fes12 && item_fes && item_fes2)
+      raise FELFatal, "Booting to other mode is not implemented for" <<
+        " legacy images yet" unless $options[:dest] == :usb_product
       fes11 = fel.get_image_data(item_fes11)
       fes12 = fel.get_image_data(item_fes12)
       fes = fel.get_image_data(item_fes)

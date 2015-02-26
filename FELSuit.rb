@@ -247,14 +247,16 @@ class FELSuit < FELix
   # Download egon, uboot and run code in hope we boot to fes
   # @param egon [String] FES binary data (init dram code, eGON, fes1.fex)
   # @param uboot [String] U-boot binary data (u-boot.fex)
+  # @param mode [Symbol<AWUBootWorkMode>] desired work mode
   # @todo Verify header (eGON.BT0, uboot)
   # @raise [String] error name
-  def boot_to_fes(egon, uboot)
+  def boot_to_fes(egon, uboot, mode = :usb_product)
+    raise FELError, "Unknown work mode (#{mode.to_s})" unless AWUBootWorkMode[mode]
     raise FELError, "eGON is too big (#{egon.bytesize}>16384)" if egon.bytesize>16384
     write(0x2000, egon)
     run(0x2000)
     write(0x4a000000, uboot)
-    write(0x4a0000E0, AWUBootWorkMode[:usb_product].chr) # write 0x10 flag
+    write(0x4a0000e0, AWUBootWorkMode[mode].chr) if mode
     run(0x4a000000)
   end
 
