@@ -978,10 +978,6 @@ begin
       end
 
       opts.separator "* Only in FES mode".light_blue.underline
-      opts.on("--format mbr", "Erase NAND Flash and write new MBR") do |f|
-        $options[:action] = :format
-        $options[:file] = f
-      end
       opts.on("--mbr mbr", "Write new MBR") do |f|
         $options[:action] = :mbr
         $options[:file] = f
@@ -1100,9 +1096,10 @@ begin
     puts "[OK]".green unless $options[:verbose]
     AWFESInfoResponse.read(status).pp
   when :mbr
-    print "* Writing MBR".ljust(57) << "\t" unless $options[:verbose]
+    print ("* Writing new paratition table" << (format ? " and formating storage" :
+      "")).ljust(57) << "\t" unless $options[:verbose]
     mbr = File.read($options[:file])
-    status = fel.write_mbr(mbr, false)
+    status = fel.write_mbr(mbr, $options[:format])
     raise FELError, "Write failed (#{status.crc})" if status.crc != 0
     puts "[OK]".green unless $options[:verbose]
   when :storage
