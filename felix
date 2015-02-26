@@ -1031,6 +1031,9 @@ begin
       opts.on_tail("-v", "--verbose", "Verbose traffic") do
         $options[:verbose] = true
       end
+      opts.on_tail("-f", "--force", "Force storage format (for --flash and --mbr)") do
+        $options[:format] = true
+      end
       opts.on_tail("-s", "--silent", "Don't print a banner") do
         $options[:silent] = true
       end
@@ -1096,13 +1099,6 @@ begin
     status = fel.info
     puts "[OK]".green unless $options[:verbose]
     AWFESInfoResponse.read(status).pp
-  when :format
-    print "* Formating NAND (it may take ~60 seconds)".ljust(57) << "\t" unless
-      $options[:verbose]
-    mbr = File.read($options[:file])
-    status = fel.write_mbr(mbr, true)
-    raise FELError, "Format failed (#{status.crc})" if status.crc != 0
-    puts "[OK]".green unless $options[:verbose]
   when :mbr
     print "* Writing MBR".ljust(57) << "\t" unless $options[:verbose]
     mbr = File.read($options[:file])
@@ -1286,7 +1282,7 @@ begin
     FELHelpers.debug_packets($options[:file])
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
-    fel.flash do |s, percent|
+    fel.flash($options[:format]) do |s, percent|
       puts "[OK]".ljust(4).green unless $options[:verbose] || percent
       if percent
         str = ""

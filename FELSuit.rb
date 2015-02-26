@@ -53,9 +53,10 @@ class FELSuit < FELix
 
   # Flash legacy image to the device
   # @raise [FELError, FELFatal] if failed
+  # @param format [TrueClass, FalseClass] force storage format
   # @yieldparam [String] status
   # @yieldparam [Integer] Percentage status if there's active transfer
-  def flash_legacy
+  def flash_legacy(format = false)
     raise FELFatal, "Tried to flash legacy file that isn't legacy!" unless legacy?
     # 1. Let's check device mode
     info = get_device_status
@@ -123,10 +124,11 @@ class FELSuit < FELix
 
   # Flash image to the device
   # @raise [FELError, FELFatal] if failed
+  # @param format [TrueClass, FalseClass] force storage format
   # @yieldparam [String] status
   # @yieldparam [Integer] Percentage status if there's active transfer
-  def flash
-    return flash_legacy if legacy?
+  def flash(format = false)
+    return flash_legacy(format) if legacy?
     # 1. Let's check device mode
     info = get_device_status
     raise FELError, "Failed to get device info. Try to reboot!" unless info
@@ -144,12 +146,13 @@ class FELSuit < FELix
     end
     # 4. Write MBR
     # @todo add format parameter
-    yield "Writing new paratition table" if block_given?
+    yield "Writing new paratition table" << (format ? " and formating storage" :
+      "") if block_given?
     raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
     mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
     dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
       "dlinfo.fex")))
-    status = write_mbr(mbr, false)
+    status = write_mbr(mbr, format)
     raise FELError, "Cannot flash new partition table" if status.crc != 0
     # 5. Enable NAND
     yield "Attaching NAND driver" if block_given?
