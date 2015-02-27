@@ -57,6 +57,8 @@ class FELSuit < FELix
   # @yieldparam [String] status
   # @yieldparam [Integer] Percentage status if there's active transfer
   def flash_legacy(format = false)
+    # Temporary fallback
+    raise FELFatal, "That functionality isn't finished yet!"
     raise FELFatal, "Tried to flash legacy file that isn't legacy!" unless legacy?
     # 1. Let's check device mode
     info = get_device_status
