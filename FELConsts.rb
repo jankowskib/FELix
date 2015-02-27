@@ -44,43 +44,43 @@ USBCmd = {
 
 #FEL Messages
 FELCmd = {
-  :verify_device                   => 0x1, # can be used in FES
+  :verify_device                   => 0x1, # [@get_device_status] can be used in FES
   :switch_role                     => 0x2,
   :is_ready                        => 0x3, # Read len 8, can be used in FES
   :get_cmd_set_ver                 => 0x4, # can be used in FES
   :disconnect                      => 0x10,
-  :download                        => 0x101, # write
-  :run                             => 0x102,
-  :upload                          => 0x103
+  :download                        => 0x101, # [@write] write
+  :run                             => 0x102, # [@run] execute
+  :upload                          => 0x103  # [@read] read
 }
 
 #FES Messages
 FESCmd = {
-  :transmite                       => 0x201, # read,write depends on flag
-  :run                             => 0x202,
-  :info                            => 0x203, # get if FES_RUN has finished (32 bytes)
-  :get_msg                         => 0x204, # get result of last FES_RUN (param buffer size)
-  :unreg_fed                       => 0x205, # unmount NAND/MMC
+  :transmite                       => 0x201, # [@transmite] read,write depends on flag
+  :run                             => 0x202, # [@run]
+  :info                            => 0x203, # [@info] get if FES_RUN has finished (32 bytes)
+  :get_msg                         => 0x204, # [@get_msg] get result of last FES_RUN (param buffer size)
+  :unreg_fed                       => 0x205, # [@unreg_fed] unmount NAND/MMC
   # Following are available on boot2.0
-  :download                        => 0x206,
-  :upload                          => 0x207,
+  :download                        => 0x206, # [@write]
+  :upload                          => 0x207, # [@read]
   :verify                          => 0x208, # check CRC of given memory block
   :query_storage                   => 0x209, # used to check if we boot from nand or sdcard
-  :flash_set_on                    => 0x20A, # exec sunxi_sprite_init(0) => no data
-  :flash_set_off                   => 0x20B, # exec sunxi_sprite_exit(1) => no data
+  :flash_set_on                    => 0x20A, # [@set_storage_state] exec sunxi_sprite_init(0) => no data
+  :flash_set_off                   => 0x20B, # [@set_storage_state] exec sunxi_sprite_exit(1) => no data
   :verify_value                    => 0x20C,
-  :verify_status                   => 0x20D, # read len 12 => AWFESVerifyStatusResponse
+  :verify_status                   => 0x20D, # [@verify_status] read len 12 => AWFESVerifyStatusResponse
   :flash_size_probe                => 0x20E, # read len 4 => sunxi_sprite_size()
-  :tool_mode                       => 0x20F, # can be used to reboot device
+  :tool_mode                       => 0x20F, # [@set_tool_mode] can be used to reboot device
                                              # :toolmode is one of AWUBootWorkMode
                                              # :nextmode is desired mode
   :memset                          => 0x210, # can be used to fill memory with desired value (byte)
   :pmu                             => 0x211, # change voltage setting
   :unseqmem_read                   => 0x212, # unsequenced memory read
   :unseqmem_write                  => 0x213,
-  # From https://github.com/allwinner-zh/bootloader unavaiable on most tablets <2015 year
-  :fes_reset_cpu				   => 0x214,
-  :low_power_manger 			   => 0x215,
+  # From https://github.com/allwinner-zh/bootloader unavailable on most tablets <2015 year
+  :fes_reset_cpu				           => 0x214,
+  :low_power_manger 			         => 0x215,
   :force_erase                     => 0x220,
   :force_erase_key                 => 0x221,
   :query_secure                    => 0x230
