@@ -19,7 +19,7 @@ Features
 * Dump/flash single partition
 * Display the device info
 * Reboot the device
-
+* Boot device using given u-boot
 
 Installation
 ------------------
@@ -56,23 +56,20 @@ Howtos
 
 * Dump/flash single partition
 
-  1. Get firmware image
-
-  2. Boot to FES
+  1. Boot to FES
 
           $ felix --tofes <firmware.img>
 
-  3. Enable NAND
+  2. Enable NAND
 
           $ felix --nand on
 
-  4. Flash or dump partition
+  3. Flash or dump partition
 
           $ felix --write boot.img --item boot
-
           $ felix --read boot.img --item boot
 
-  5. Disable NAND
+  4. Disable NAND
 
           $ felix --nand off
 
@@ -87,7 +84,7 @@ Howtos
 
   3. Write new boot0 using fes context and boot0 tag
 
-          $ felix --write boot0_nand.fex -c fes -t boot0
+          $ felix --write boot0_nand.fex -c fes -t boot0 -a 0 (for boot1 use boot1 or uboot tag)
 
   4. Optionally reboot device
 
@@ -107,6 +104,10 @@ Todo
 There's a lot of things to do. The most important are:
 
 - [ ] Support for legacy image format (partially done)
+  - [x] Boot to FES
+  - [ ] Flash legacy image
+  - [x] Extract legacy image
+- [ ] Validation of files before flash
 - [ ] Improve error handling (may be troublesome)
 - [x] Separate command for reading/writing NAND partitions
 - [x] Improve speed of libsparse / rc6 algorithm
