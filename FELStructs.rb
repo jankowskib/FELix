@@ -276,15 +276,7 @@ class AWSysParaItem < BinData::Record
   string :name, :length => 32, :trim_padding => true
   string :filename, :length => 32, :trim_padding => true
   string :verify_filename, :length => 32, :trim_padding => true # checksum of the item
-  uint8  :encrypt, :initial_value => 0
-end
-
-
-# size 96
-class AWSysParaUnk < BinData::Record
-  endian :little
-  array :unk, :type => :uint32, :initial_length => 24
-  uint8 :one, :initial_value => 1
+  uint8  :encrypt, :initial_value => 0 # 1 if item is unused
 end
 
 # size 5496, send in FES mode (boot1.0 only) as param to FED
@@ -307,11 +299,9 @@ class AWSysPara < BinData::Record
                                                               # on other device there are place for 41
   uint32le :dl_num                                            # 0xA88
   array    :dl_items, :type => :aw_sys_para_item,
-    :initial_length => lambda { dl_num }                      # 0xA8C
+    :initial_length => lambda { 17 }                          # 0xA8C (30 on other device)
                                                               # 0xCD2 (if dl_num == 9)
                                                               # (...) struct of 96 bytes?
-  array    :unk7, :type => :aw_sys_para_unk,                  # sizeof 2214
-    :initial_length => 8                                      # 97 bytes on other just +1 byte, weird...
   array    :unk8, :type => :uint8le, :initial_length => 1438
 end
 
