@@ -296,20 +296,22 @@ class AWSysPara < BinData::Record
   aw_legacy_system_parameters :dram                           # 0x14
   uint32le :unk4                                              # 0xC8
   uint32le :unk5, :initial_value => 8                         # 0xCC
-  array    :unk6, :type => :uint32le, :initial_length => 256  # 0xD0
+  array    :unk6, :type => :uint32le, :initial_length => 256  # 0xD0 on some device its 512 length
+                                                              # and dram aren't of legacy type check that
   uint32le :mbr_size, :initial_value => 16384                 # 0x4D0
   uint32le :part_num                                          # 0x4D4
   array    :part_items, :type => :aw_sys_para_part,
            :initial_length => lambda { part_num }             # 0x4D8
   array    :reserved, :type => :uint32le,
-    :initial_length => lambda { (14 - part_num) * 26 }
+    :initial_length => lambda { (14 - part_num) * 26 }        # (26 -> sizeof(aw_sys_para_part) /4)
+                                                              # on other device there are place for 41
   uint32le :dl_num                                            # 0xA88
   array    :dl_items, :type => :aw_sys_para_item,
     :initial_length => lambda { dl_num }                      # 0xA8C
                                                               # 0xCD2 (if dl_num == 9)
                                                               # (...) struct of 96 bytes?
   array    :unk7, :type => :aw_sys_para_unk,                  # sizeof 2214
-    :initial_length => 8
+    :initial_length => 8                                      # 97 bytes on other just +1 byte, weird...
   array    :unk8, :type => :uint8le, :initial_length => 1438
 end
 
