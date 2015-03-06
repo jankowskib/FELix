@@ -669,6 +669,41 @@ class FELix
     status_response
   end
 
+  # Verify checksum of given memory block
+  # @param address [Integer] memory address
+  # @param len [Integer] length of verfied block
+  # @return [AWFESVerifyStatusResponse] verification response
+  # @raise [FELError] error name
+  # @note Use only in :fes mode
+  def verify_value(address, len)
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:verify_value]
+    request.address = address
+    request.len = len
+    data = send_request(request.to_binary_s)
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.length != 13
+    data = recv_request(12)
+    if data.bytesize == 0
+      raise FELError, "Failed to receive verify request (no data)"
+    elsif data.bytesize != 12
+      raise FELError, "Failed to receive verify request (data len " <<
+        "#{data.bytesize} != 12)"
+    end
+    status_response = AWFESVerifyStatusResponse.read(data)
+
+    data = recv_request(8)
+    if data == nil || data.bytesize != 8
+      raise FELError, "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise FELError, "Command failed (Status #{status.state})"
+    end
+
+    status_response
+  end
+
   # Attach / Detach flash storage (handles `:flash_set_on` and `:flash_set_off`)
   # @param how [Symbol] desired state of flash (`:on` or `:off`)
   # @raise [String] error name
@@ -867,8 +902,8 @@ begin
   # ComputerInteger: hex strings (0x....) or decimal
   ComputerInteger = /(?:0x[\da-fA-F]+(?:_[\da-fA-F]+)*|\d+(?:_\d+)*)/
   Modes = [:fel, :fes]
-  AddressCmds = [:write, :read, :run, :transmite]
-  LengthCmds = [:read, :transmite]
+  AddressCmds = [:write, :read, :run, :transmite, :crc]
+  LengthCmds = [:read, :transmite, :crc]
   OptionParser.new do |opts|
       opts.banner = "Usage: FELix.rb action [options]"
       opts.separator "Actions:"
@@ -993,6 +1028,8 @@ begin
          $options[:action] = :transmite
          $options[:file] = f
       end
+      opts.on("--crc", "Get checksum of the memory block. Must be used with " <<
+        "--address and --length") { $options[:action] = :crc }
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
       opts.on("--info", "Get code exection status") { $options[:action] = :info }
 
@@ -1043,6 +1080,9 @@ begin
     " more of " << AWTags.keys.join(", ") unless ($options[:tags] - AWTags.
     keys).empty?
   raise OptionParser::MissingArgument, "You must specify --address and " <<
+      "--length" if($options[:action] == :crc && ($options[:length] == nil ||
+       $options[:address] == nil))
+  raise OptionParser::MissingArgument, "You must specify --address and " <<
     "--length or --item!" if($options[:direction] == :read && !$options[:item] &&
     ($options[:length] == nil || $options[:address] == nil) && [:read, :transmite].
     include?($options[:action]))
@@ -1088,6 +1128,12 @@ begin
   puts "[OK]".green if dev
 
   case $options[:action]
+  when :crc
+    print ("* Getting CRC for 0x%08x" % $options[:address]).ljust(57) <<
+      "\t" unless $options[:verbose]
+    status = fel.verify_value($options[:address], $options[:length])
+    puts "[OK]".green unless $options[:verbose]
+    status.pp
   when :device_status
     print fel.get_device_status.inspect
   when :info

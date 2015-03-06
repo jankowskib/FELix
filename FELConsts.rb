@@ -68,7 +68,7 @@ FESCmd = {
   :query_storage                   => 0x209, # used to check if we boot from nand or sdcard
   :flash_set_on                    => 0x20A, # [@set_storage_state] exec sunxi_sprite_init(0) => no data
   :flash_set_off                   => 0x20B, # [@set_storage_state] exec sunxi_sprite_exit(1) => no data
-  :verify_value                    => 0x20C,
+  :verify_value                    => 0x20C, # [@verify_value] compute and return CRC of given mem block => AWFESVerifyStatusResponse
   :verify_status                   => 0x20D, # [@verify_status] read len 12 => AWFESVerifyStatusResponse
   :flash_size_probe                => 0x20E, # read len 4 => sunxi_sprite_size()
   :tool_mode                       => 0x20F, # [@set_tool_mode] can be used to reboot device
