@@ -125,7 +125,7 @@ end
 class AWFESVerifyStatusResponse < BinData::Record # size 12
   uint32le :flags   # always 0x6a617603
   uint32le :fes_crc
-  int32le  :crc     # also last_error (0 if OK, -1 if fail)
+  uint32le  :crc     # also last_error (0 if OK, -1 if fail)
 end
 
 # Used by FES[:run] with has_param flag
