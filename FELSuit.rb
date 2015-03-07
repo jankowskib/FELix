@@ -127,9 +127,10 @@ class FELSuit < FELix
   # Flash image to the device
   # @raise [FELError, FELFatal] if failed
   # @param format [TrueClass, FalseClass] force storage format
+  # @param verify [TrueClass, FalseClass] verify written data
   # @yieldparam [String] status
   # @yieldparam [Integer] Percentage status if there's active transfer
-  def flash(format = false)
+  def flash(format = false, verify = true)
     return flash_legacy(format) if legacy?
     # 1. Let's check device mode
     info = get_device_status
@@ -165,6 +166,20 @@ class FELSuit < FELix
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
+        
+      # Check CRC of the image if it's the same - no need to spam NAND with the same data
+      # This should speed up flashing process A LOT
+      # But if format flag is set that's just waste of time
+      if !format && !item.verify_filename.empty? then
+        yield "Checking #{item.name}" if block_given?
+        crc = verify_value(item.address_low, part.data_len_low)
+        crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
+        valid_crc = get_image_data(crc_item)
+        if crc.crc == valid_crc.unpack("V*")[0] then
+          yield "#{item.name} is unchanged. Skipping..." if block_given?
+          next
+        end
+      end
       yield "Flashing #{item.name}" if block_given?
       curr_add = item.address_low
       if item.name == "system"
@@ -227,6 +242,20 @@ class FELSuit < FELix
           yield "Writing #{item.name}", 100 if block_given?
         end
         threads.each {|t| t.join}
+      end
+      # Verify CRC of written data
+      if verify && item.name != "system" then
+        #@todo Check why system partition's CRC is not matching
+        yield "Verifying #{item.name}" if block_given?
+        crc = verify_value(item.address_low, part.data_len_low)
+        crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
+        valid_crc = get_image_data(crc_item)
+        # try again if verification failed
+        if crc.crc != valid_crc.unpack("V*")[0] then
+          yield "CRC mismatch for #{item.name}: (#{crc.crc} !=" <<
+            " #{valid_crc.unpack("V*")[0]}). Trying again..." if block_given?
+          redo
+        end
       end
     end
     # 7. Disable NAND
