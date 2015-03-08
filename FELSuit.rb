@@ -147,11 +147,10 @@ class FELSuit < FELix
       raise FELError, "Failed to reconnect!" unless reconnect?
       info = get_device_status
     end
+    raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
     # 4. Write MBR
-    # @todo add format parameter
     yield "Writing new paratition table" << (format ? " and formating storage" :
       "") if block_given?
-    raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
     mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
     dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
       "dlinfo.fex")))
