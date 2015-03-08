@@ -1190,25 +1190,28 @@ begin
     File.open($options[:file], "w") { |f| f.write(data) }
     puts "[OK]".green unless $options[:verbose]
   when :write
-    file = File.read($options[:file])
-    print ("* Read file (#{file.bytesize} bytes" <<
-    ")").ljust(57) << "\t" unless $options[:verbose]
-    puts "[OK]".green unless $options[:verbose]
-    begin
-      sparse = SparseImage.new(StringIO.new(file))
-      print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-      i = 0
-      unsparsed = String.new
-      sparse.each_chunk do |chunk|
-        i+=1
-        print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-        percent =  (i * 100) / sparse.count_chunks
-        print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
-        unsparsed << chunk
+    header = File.read($options[:file], 64) # read first 64 bytes
+    if SparseImage.is_valid?(header) # Decompress sparse image
+      File.open($options[:file], "rb") do |file|
+        sparse = SparseImage.new(file)
+        print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
+        i = 0
+        unsparsed = String.new
+        sparse.each_chunk do |chunk|
+          i+=1
+          print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
+          percent =  (i * 100) / sparse.count_chunks
+          print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
+          unsparsed << chunk
+        end
+        puts "[OK]".green unless $options[:verbose]
       end
-      puts "[OK]".green unless $options[:verbose]
       file = unsparsed
-    rescue SparseError => e
+    else
+      file = File.read($options[:file])
+      print ("* Read file (#{file.bytesize} bytes" <<
+      ")").ljust(57) << "\t" unless $options[:verbose]
+      puts "[OK]".green unless $options[:verbose]
     end
     if $options[:item]
       # Read all data from MBR
