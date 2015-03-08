@@ -154,7 +154,13 @@ class FELSuit < FELix
     mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
     dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
       "dlinfo.fex")))
+    time = Time.now unless format
     status = write_mbr(mbr, format)
+    # HACK: If writing operation took more than 15 seconds assume device is formated
+    if (Time.now - time) > 15 && !format then
+      yield ("Warning:".red << " Storage has been formated anyway!"), :info if block_given?
+      format = true
+    end
     raise FELError, "Cannot flash new partition table" if status.crc != 0
     # 5. Enable NAND
     yield "Attaching NAND driver" if block_given?
