@@ -1092,8 +1092,8 @@ begin
 rescue OptionParser::MissingArgument => e
   puts "#{e.message.camelize}. Type felix --help to see usage"
   exit FELIX_FAIL
-rescue OptionParser::InvalidArgument
-  puts "Invalid argument. Type felix --help to see usage"
+rescue OptionParser::InvalidArgument => e
+  puts "#{e.message.camelize}. Type felix --help to see usage"
   exit FELIX_FAIL
 rescue OptionParser::InvalidOption
   puts "Unknown option. Type felix --help to see usage"
