@@ -1138,7 +1138,7 @@ begin
 
   case $options[:action]
   when :crc
-    print ("* Getting CRC for 0x%08x" % $options[:address]).ljust(57) <<
+    print ("* Getting CRC for 0x%08x (%d bytes)" % [$options[:address], $options[:length]]).ljust(57) <<
       "\t" unless $options[:verbose]
     status = fel.verify_value($options[:address], $options[:length])
     puts "[OK]".green unless $options[:verbose]
