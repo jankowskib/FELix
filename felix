@@ -1283,7 +1283,7 @@ begin
     if $options[:item]
       # Extract single item
       fn = "#{$options[:file]}_#{$options[:item]}"
-      fn = File.basename(fn)
+      fn = "#{Dir.pwd}\\#{File.basename(fn)}"
       print "* Extracting to #{fn}".ljust(57) << "\t"
       item = fel.structure.item_by_file($options[:item])
       raise FELError, "Item not found!" unless item
@@ -1301,7 +1301,8 @@ begin
       puts "[OK]".green
     else
       # Extract everything we find
-      dir = "#{$options[:file]}_unpacked"
+      dir = "#{Dir.pwd}\\#{File.basename($options[:file])}_unpacked"
+      puts "* Extracting to #{dir}"
       unless File.exists?(dir)
         print "* Creating #{dir}".ljust(57) << "\t"
         Dir.mkdir(dir)
