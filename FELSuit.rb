@@ -252,8 +252,8 @@ class FELSuit < FELix
         threads.each {|t| t.join}
       end
       # Verify CRC of written data
-      if verify && item.name != "system" then
-        #@todo Check why system partition's CRC is not matching
+      if verify && !(["system", "UDISK"].include?(item.name)) then
+        # @todo Check why system partition's CRC is not matching
         yield "Verifying #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
