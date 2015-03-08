@@ -99,11 +99,11 @@ class SparseImage
   end
 
   # Dump decompressed image
-  # @param filename [String] image path
+  # @param filename [String] output image path
   def dump(filename)
-    out = File.open(filename, "w")
+    out = File.open(filename, "wb")
     each_chunk do |chunk|
-        out << data
+        out << chunk
     end
   ensure
     out.close
