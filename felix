@@ -1079,6 +1079,9 @@ begin
       opts.on_tail("-s", "--silent", "Don't print a banner") do
         $options[:silent] = true
       end
+      opts.on_tail("--decompress", "Decompress sparse image (for --image-extract)") do
+        $options[:decompress] = true
+      end
   end.parse!
   $options[:tags] = [:none] unless $options[:tags]
   $options[:mode] = :fel unless $options[:mode]
@@ -1285,8 +1288,14 @@ begin
       item = fel.structure.item_by_file($options[:item])
       raise FELError, "Item not found!" unless item
       File.open(fn, "w") do |f|
-        fel.get_image_data(item, 8192, item.file_len_low) do |d|
-          f.write(d)
+        if $options[:decompress] && SparseImage.is_valid?(fel.get_image_data(
+          item, 64, 64))
+          sys_handle = fel.get_image_handle(item)
+          sparse = SparseImage.new(sys_handle, item.off_len_low)
+          sparse.each_chunk { |ch| f.write(ch) }
+          sys_handle.close
+        else
+          fel.get_image_data(item, 8192, item.file_len_low) { |d| f.write(d) }
         end
       end
       puts "[OK]".green
@@ -1308,12 +1317,26 @@ begin
         FileUtils.mkdir_p(path) unless File.exists?(path)
         File.open("#{path}\\#{file}", "w") do |f|
           written = 0
-          fel.get_image_data(it, 8192, it.file_len_low) do |d|
-            f.write(d)
-            written+=d.bytesize
-            percent = written * 100 / it.file_len_low
-            print "\r* #{file}".ljust(57) << "\t"
-            print "#{percent}%".ljust(4).light_blue if percent < 100
+          if $options[:decompress] && SparseImage.is_valid?(fel.get_image_data(
+            it, 64, 64))
+            sys_handle = fel.get_image_handle(it)
+            sparse = SparseImage.new(sys_handle, it.off_len_low)
+            sparse.each_chunk do |ch|
+              f.write(ch)
+              written+=ch.bytesize
+              percent = written * 100 / sparse.get_final_size
+              print "\r* #{file}".ljust(57) << "\t"
+              print "#{percent}%".ljust(4).light_blue if percent < 100
+            end
+            sys_handle.close
+          else
+            fel.get_image_data(it, 8192, it.file_len_low) do |d|
+              f.write(d)
+              written+=d.bytesize
+              percent = written * 100 / it.file_len_low
+              print "\r* #{file}".ljust(57) << "\t"
+              print "#{percent}%".ljust(4).light_blue if percent < 100
+            end
           end
         end
         puts "[OK]".green
