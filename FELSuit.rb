@@ -177,7 +177,7 @@ class FELSuit < FELix
       # Check CRC of the image if it's the same - no need to spam NAND with the same data
       # This should speed up flashing process A LOT
       # But if format flag is set that's just waste of time
-      if !format && !item.verify_filename.empty? then
+      unless format || item.verify_filename.empty? || item.name == "system" then
         yield "Checking #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
