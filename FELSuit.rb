@@ -410,7 +410,7 @@ class FELSuit < FELix
   # @note Don't forget to close handle after
   def get_image_handle(item)
     raise FELError, "Item not exist" unless item
-    f = File.open(@image)
+    f = File.open(@image, "rb")
     f.seek(item.off_len_low, IO::SEEK_CUR)
     f
   end
@@ -419,7 +419,7 @@ class FELSuit < FELix
   # @return [AWImage] LiveSuit image structure
   def fetch_image_structure
     if @encrypted
-      File.open(@image) do |f|
+      File.open(@image, "rb") do |f|
         header = f.read(1024)
         header = FELHelpers.decrypt(header, :header)
         img_version = header[8, 4].unpack("V").first
@@ -431,7 +431,7 @@ class FELSuit < FELix
       end
     else
       # much faster if image is not encrypted
-      File.open(@image) { |f| AWImage.read(f) }
+      File.open(@image, "rb") { |f| AWImage.read(f) }
     end
   end
 
