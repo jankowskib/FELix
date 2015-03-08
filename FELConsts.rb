@@ -15,7 +15,7 @@
 #
 
 # App version
-FELIX_VERSION = "1.0 RC2"
+FELIX_VERSION = "1.0 RC3"
 
 #Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
