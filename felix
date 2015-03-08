@@ -1334,18 +1334,22 @@ begin
     FELHelpers.debug_packets($options[:file])
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
-    fel.flash($options[:format]) do |s, percent|
-      puts "[OK]".ljust(4).green unless $options[:verbose] || percent
-      if percent
+    last_type = :action
+    fel.flash($options[:format]) do |s, type, arg|
+      puts "[OK]".ljust(4).green unless $options[:verbose] || type == :percent ||
+        last_type == :info
+      if type == :percent && arg
         str = ""
         str << "\r* #{s}".ljust(57) << "\t" unless $options[:verbose]
-        str << "#{percent}%".ljust(4).light_blue if !$options[:verbose] && percent < 100
+        str << "#{arg}%".ljust(4).light_blue if !$options[:verbose] && arg < 100
         print str
+      elsif type == :info
+        puts "  #{s}" unless $options[:verbose]
       else
         print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
       end
+      last_type = type
     end
-      puts "[OK]".green
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
     info = fel.get_device_status
