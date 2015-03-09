@@ -159,7 +159,7 @@ class FELSuit < FELix
     time = Time.now unless format
     status = write_mbr(mbr, format)
     # HACK: If writing operation took more than 15 seconds assume device is formated
-    if (Time.now - time) > 15 && !format then
+    if !format && (Time.now - time) > 15 then
       yield ("Warning:".red << " Storage has been formated anyway!"), :info if block_given?
       format = true
     end
