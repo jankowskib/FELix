@@ -669,6 +669,41 @@ class FELix
     status_response
   end
 
+  # Verify checksum of given memory block
+  # @param address [Integer] memory address
+  # @param len [Integer] length of verfied block
+  # @return [AWFESVerifyStatusResponse] verification response
+  # @raise [FELError] error name
+  # @note Use only in :fes mode
+  def verify_value(address, len)
+    request = AWFELMessage.new
+    request.cmd = FESCmd[:verify_value]
+    request.address = address
+    request.len = len
+    data = send_request(request.to_binary_s)
+    raise FELError, "Failed to send request (response len: #{data.bytesize}" <<
+    " != 13)" if data.length != 13
+    data = recv_request(12)
+    if data.bytesize == 0
+      raise FELError, "Failed to receive verify request (no data)"
+    elsif data.bytesize != 12
+      raise FELError, "Failed to receive verify request (data len " <<
+        "#{data.bytesize} != 12)"
+    end
+    status_response = AWFESVerifyStatusResponse.read(data)
+
+    data = recv_request(8)
+    if data == nil || data.bytesize != 8
+      raise FELError, "Failed to receive device status (data: #{data})"
+    end
+    status = AWFELStatusResponse.read(data)
+    if status.state > 0
+      raise FELError, "Command failed (Status #{status.state})"
+    end
+
+    status_response
+  end
+
   # Attach / Detach flash storage (handles `:flash_set_on` and `:flash_set_off`)
   # @param how [Symbol] desired state of flash (`:on` or `:off`)
   # @raise [String] error name
@@ -866,11 +901,13 @@ $options = {}
 begin
   # ComputerInteger: hex strings (0x....) or decimal
   ComputerInteger = /(?:0x[\da-fA-F]+(?:_[\da-fA-F]+)*|\d+(?:_\d+)*)/
+  # MemoryInteger: extended ComputerInteger that accepts units (KB, MB, GB)
+  MemoryInteger = /(?:0x[\dA-F]+(?:_[\dA-F]+)*|\d+(?:_\d+)*[kmg]?b?)/i
   Modes = [:fel, :fes]
-  AddressCmds = [:write, :read, :run, :transmite]
-  LengthCmds = [:read, :transmite]
+  AddressCmds = [:write, :read, :run, :transmite, :crc]
+  LengthCmds = [:read, :transmite, :crc]
   OptionParser.new do |opts|
-      opts.banner = "Usage: FELix.rb action [options]"
+      opts.banner = "Usage: felix action [options]"
       opts.separator "Actions:"
 
       opts.separator "* Common".light_blue.underline
@@ -993,6 +1030,8 @@ begin
          $options[:action] = :transmite
          $options[:file] = f
       end
+      opts.on("--crc", "Get checksum of the memory block. Must be used with " <<
+        "--address and --length") { $options[:action] = :crc }
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
       opts.on("--info", "Get code exection status") { $options[:action] = :info }
 
@@ -1004,9 +1043,16 @@ begin
       " --" << AddressCmds.join(", --") << ")") do |a|
         $options[:address] = a[0..1] == "0x" ? Integer(a, 16) : a.to_i
       end
-      opts.on("-l", "--length len", ComputerInteger, "Length of data (used " <<
-      "for --" << LengthCmds.join(", --") << ")") do |l|
-        $options[:length] = l[0..1] == "0x" ? Integer(l, 16) : l.to_i
+      opts.on("-l", "--length len", MemoryInteger, "Length of data (used " <<
+        "for --" << LengthCmds.join(", --") << "). You can use KB, MB, GB " <<
+        "units.") do |l|
+        multipier = case l.upcase[-2..-1]
+          when "KB" then 1024
+          when "MB" then 1024*1024
+          when "GB" then 1024*1024*1024
+          else  1
+        end
+        $options[:length] = (l[0..1] == "0x" ? Integer(l, 16) : l.to_i) * multipier
       end
       opts.on("-c", "--context ctx", Modes, "Set command context to one of " <<
       "mode (" << Modes.join(", ") << "). Default: fel") do |m|
@@ -1033,6 +1079,9 @@ begin
       opts.on_tail("-s", "--silent", "Don't print a banner") do
         $options[:silent] = true
       end
+      opts.on_tail("--decompress", "Decompress sparse image (for --image-extract)") do
+        $options[:decompress] = true
+      end
   end.parse!
   $options[:tags] = [:none] unless $options[:tags]
   $options[:mode] = :fel unless $options[:mode]
@@ -1043,6 +1092,9 @@ begin
     " more of " << AWTags.keys.join(", ") unless ($options[:tags] - AWTags.
     keys).empty?
   raise OptionParser::MissingArgument, "You must specify --address and " <<
+      "--length" if($options[:action] == :crc && ($options[:length] == nil ||
+       $options[:address] == nil))
+  raise OptionParser::MissingArgument, "You must specify --address and " <<
     "--length or --item!" if($options[:direction] == :read && !$options[:item] &&
     ($options[:length] == nil || $options[:address] == nil) && [:read, :transmite].
     include?($options[:action]))
@@ -1050,13 +1102,13 @@ begin
     $options[:direction] == :write && !$options[:item] && !$options[:address] &&
     [:write, :transmite, :run].include?($options[:action])
 rescue OptionParser::MissingArgument => e
-  puts "#{e.message.camelize}. Type FELix.rb --help to see usage"
+  puts "#{e.message.camelize}. Type felix --help to see usage"
   exit FELIX_FAIL
-rescue OptionParser::InvalidArgument
-  puts "Invalid argument. Type FELix.rb --help to see usage"
+rescue OptionParser::InvalidArgument => e
+  puts "#{e.message.camelize}. Type felix --help to see usage"
   exit FELIX_FAIL
 rescue OptionParser::InvalidOption
-  puts "Unknown option. Type FELix.rb --help to see usage"
+  puts "Unknown option. Type felix --help to see usage"
   exit FELIX_FAIL
 end
 
@@ -1088,6 +1140,12 @@ begin
   puts "[OK]".green if dev
 
   case $options[:action]
+  when :crc
+    print ("* Getting CRC for 0x%08x (%d bytes)" % [$options[:address], $options[:length]]).ljust(57) <<
+      "\t" unless $options[:verbose]
+    status = fel.verify_value($options[:address], $options[:length])
+    puts "[OK]".green unless $options[:verbose]
+    status.pp
   when :device_status
     print fel.get_device_status.inspect
   when :info
@@ -1135,25 +1193,28 @@ begin
     File.open($options[:file], "w") { |f| f.write(data) }
     puts "[OK]".green unless $options[:verbose]
   when :write
-    file = File.read($options[:file])
-    print ("* Read file (#{file.bytesize} bytes" <<
-    ")").ljust(57) << "\t" unless $options[:verbose]
-    puts "[OK]".green unless $options[:verbose]
-    begin
-      sparse = SparseImage.new(StringIO.new(file))
-      print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-      i = 0
-      unsparsed = String.new
-      sparse.each_chunk do |chunk|
-        i+=1
-        print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-        percent =  (i * 100) / sparse.count_chunks
-        print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
-        unsparsed << chunk
+    header = File.read($options[:file], 64) # read first 64 bytes
+    if SparseImage.is_valid?(header) # Decompress sparse image
+      File.open($options[:file], "rb") do |file|
+        sparse = SparseImage.new(file)
+        print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
+        i = 0
+        unsparsed = String.new
+        sparse.each_chunk do |chunk|
+          i+=1
+          print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
+          percent =  (i * 100) / sparse.count_chunks
+          print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
+          unsparsed << chunk
+        end
+        puts "[OK]".green unless $options[:verbose]
       end
-      puts "[OK]".green unless $options[:verbose]
       file = unsparsed
-    rescue SparseError => e
+    else
+      file = File.read($options[:file])
+      print ("* Read file (#{file.bytesize} bytes" <<
+      ")").ljust(57) << "\t" unless $options[:verbose]
+      puts "[OK]".green unless $options[:verbose]
     end
     if $options[:item]
       # Read all data from MBR
@@ -1222,19 +1283,26 @@ begin
     if $options[:item]
       # Extract single item
       fn = "#{$options[:file]}_#{$options[:item]}"
-      fn = File.basename(fn)
+      fn = "#{Dir.pwd}\\#{File.basename(fn)}"
       print "* Extracting to #{fn}".ljust(57) << "\t"
       item = fel.structure.item_by_file($options[:item])
       raise FELError, "Item not found!" unless item
       File.open(fn, "w") do |f|
-        fel.get_image_data(item, 8192, item.file_len_low) do |d|
-          f.write(d)
+        if $options[:decompress] && SparseImage.is_valid?(fel.get_image_data(
+          item, 64, 64))
+          sys_handle = fel.get_image_handle(item)
+          sparse = SparseImage.new(sys_handle, item.off_len_low)
+          sparse.each_chunk { |ch| f.write(ch) }
+          sys_handle.close
+        else
+          fel.get_image_data(item, 8192, item.file_len_low) { |d| f.write(d) }
         end
       end
       puts "[OK]".green
     else
       # Extract everything we find
-      dir = "#{$options[:file]}_unpacked"
+      dir = "#{Dir.pwd}\\#{File.basename($options[:file])}_unpacked"
+      puts "* Extracting to #{dir}"
       unless File.exists?(dir)
         print "* Creating #{dir}".ljust(57) << "\t"
         Dir.mkdir(dir)
@@ -1250,12 +1318,26 @@ begin
         FileUtils.mkdir_p(path) unless File.exists?(path)
         File.open("#{path}\\#{file}", "w") do |f|
           written = 0
-          fel.get_image_data(it, 8192, it.file_len_low) do |d|
-            f.write(d)
-            written+=d.bytesize
-            percent = written * 100 / it.file_len_low
-            print "\r* #{file}".ljust(57) << "\t"
-            print "#{percent}%".ljust(4).light_blue if percent < 100
+          if $options[:decompress] && SparseImage.is_valid?(fel.get_image_data(
+            it, 64, 64))
+            sys_handle = fel.get_image_handle(it)
+            sparse = SparseImage.new(sys_handle, it.off_len_low)
+            sparse.each_chunk do |ch|
+              f.write(ch)
+              written+=ch.bytesize
+              percent = written * 100 / sparse.get_final_size
+              print "\r* #{file}".ljust(57) << "\t"
+              print "#{percent}%".ljust(4).light_blue if percent < 100
+            end
+            sys_handle.close
+          else
+            fel.get_image_data(it, 8192, it.file_len_low) do |d|
+              f.write(d)
+              written+=d.bytesize
+              percent = written * 100 / it.file_len_low
+              print "\r* #{file}".ljust(57) << "\t"
+              print "#{percent}%".ljust(4).light_blue if percent < 100
+            end
           end
         end
         puts "[OK]".green
@@ -1279,18 +1361,22 @@ begin
     FELHelpers.debug_packets($options[:file])
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
-    fel.flash($options[:format]) do |s, percent|
-      puts "[OK]".ljust(4).green unless $options[:verbose] || percent
-      if percent
+    last_type = :action
+    fel.flash($options[:format]) do |s, type, arg|
+      puts "[OK]".ljust(4).green unless $options[:verbose] || type == :percent ||
+        last_type == :info
+      if type == :percent && arg
         str = ""
         str << "\r* #{s}".ljust(57) << "\t" unless $options[:verbose]
-        str << "#{percent}%".ljust(4).light_blue if !$options[:verbose] && percent < 100
+        str << "#{arg}%".ljust(4).light_blue if !$options[:verbose] && arg < 100
         print str
+      elsif type == :info
+        puts "  #{s}" unless $options[:verbose]
       else
         print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
       end
+      last_type = type
     end
-      puts "[OK]".green
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]
     info = fel.get_device_status

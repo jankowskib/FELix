@@ -86,12 +86,24 @@ class SparseImage
     raise SparseError, "Initialize error (#{e})"
   end
 
+  # Check if given data is a sparse file (it checks only validity of header
+  # contrary to #initialize)
+  # @param data [String] binary data
+  # @return [TrueClass, FalseClass] true if header is valid
+  def self.is_valid?(data)
+    return false if data.length < 32 # stop if data is less than header size
+    @header = SparseImageHeader.read(data)
+    true
+  rescue BinData::ValidityError
+    false
+  end
+
   # Dump decompressed image
-  # @param filename [String] image path
+  # @param filename [String] output image path
   def dump(filename)
-    out = File.open(filename, "w")
+    out = File.open(filename, "wb")
     each_chunk do |chunk|
-        out << data
+        out << chunk
     end
   ensure
     out.close

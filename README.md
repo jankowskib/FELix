@@ -76,17 +76,15 @@ Howtos
 
 * Write new `boot0`/`boot1` (**Warning**: this may brick your device if you write incorrect file)
 
-  1. Get firmware image
-
-  2. Boot to FES
+  1. Boot to FES
 
           $ felix --tofes <firmware.img>
 
-  3. Write new boot0 using fes context and boot0 tag
+  2. Write new boot0 using fes context and boot0 tag
 
           $ felix --write boot0_nand.fex -c fes -t boot0 -a 0 (for boot1 use boot1 or uboot tag)
 
-  4. Optionally reboot device
+  3. Optionally reboot device
 
           $ felix --reboot
 
@@ -107,7 +105,7 @@ There's a lot of things to do. The most important are:
   - [x] Boot to FES
   - [ ] Flash legacy image
   - [x] Extract legacy image
-- [ ] Validation of files before flash
+- [x] Validation of files before flash
 - [ ] Improve error handling (may be troublesome)
 - [x] Separate command for reading/writing NAND partitions
 - [x] Improve speed of libsparse / rc6 algorithm
