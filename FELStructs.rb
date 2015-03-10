@@ -88,7 +88,7 @@ class AWFESTrasportRequest < BinData::Record # size 16
 end
 
 class AWFELStatusResponse < BinData::Record # size 8
-  uint16le :mark
+  uint16le :mark, :asserted_value => 0xFFFF
   uint16le :tag
   uint8    :state
   array    :reserved, :type => :uint8, :initial_length => 3
