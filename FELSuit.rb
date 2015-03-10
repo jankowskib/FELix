@@ -209,10 +209,10 @@ class FELSuit < FELix
         end
         threads << Thread.new do
           written = 0
-          while written < part.data_len_low
+          while written < sparse.get_final_size
             data = queue.pop
             written+=data.bytesize
-            write(curr_add, data, :none, :fes, written < part.data_len_low) do |ch|
+            write(curr_add, data, :none, :fes, written < sparse.get_final_size) do |ch|
               yield ("Writing #{item.name} @ 0x%08x" % (curr_add + (ch / 512))),
                 :percent, ((written - data.bytesize + ch) * 100) / sparse.
                 get_final_size if block_given?
