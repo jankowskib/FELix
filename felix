@@ -321,6 +321,8 @@ class FELix
     FELHelpers.debug_packet(r3, :read) if $options[:verbose]
     puts "Received ".green << "#{r3.bytesize}".yellow << " bytes".green if $options[:verbose]
     r3
+  rescue LIBUSB::ERROR_INTERRUPTED, LIBUSB::ERROR_TIMEOUT
+    raise FELError, "Transfer cancelled"
   rescue => e
     raise FELFatal, "Failed to send ".red << "#{data.bytesize}".yellow << " bytes".red <<
     " (" << e.message << ")"
@@ -468,21 +470,28 @@ class FELix
       request.flags |= AWTags[:finish] if mode == :fes &&
         total_len <= FELIX_MAX_CHUNK && dontfinish == false
 
-      data = send_request(request.to_binary_s)
-      if data == nil
-        raise FELError, "Failed to send request (#{request.cmd})"
+      begin
+        data = send_request(request.to_binary_s)
+      rescue FELError
+        redo
+      rescue FELFatal => e
+        raise FELFatal, "\nFailed to send request: #{e}"
       end
-      data = send_request(memory.byteslice(start, request.len))
-      if data == nil
-        raise FELError, "Failed to send data (#{start}/#{memory.bytesize})"
+      begin
+        data = send_request(memory.byteslice(start, request.len))
+      rescue FELFatal => e
+        raise FELFatal, "\nFailed to send data (#{start}/#{memory.bytesize}: #{e})"
       end
-      data = recv_request(8)
-      if data == nil || data.bytesize != 8
-        raise FELError, "Failed to receive device status (data: #{data})"
+      begin
+        data = recv_request(8)
+      rescue FELFatal => e
+        raise FELFatal, "\nFailed to receive device status: #{e}"
       end
-      status = AWFELStatusResponse.read(data)
-      if status.state > 0
-        raise FELError, "Command failed (Status #{status.state})"
+      begin
+        status = AWFELStatusResponse.read(data)
+        raise FELError, "\nCommand failed (Status #{status.state})" if status.state > 0
+      rescue BinData::ValidityError => e
+        raise FELFatal, "\nUnexpected device response: #{e}"
       end
       start+=request.len
       total_len-=request.len
