@@ -1154,7 +1154,7 @@ begin
     puts "[OK]".green unless $options[:verbose]
     AWFESInfoResponse.read(status).pp
   when :mbr
-    print ("* Writing new paratition table" << (format ? " and formating storage" :
+    print ("* Writing new paratition table" << (format ? " and formatting storage" :
       "")).ljust(57) << "\t" unless $options[:verbose]
     mbr = File.read($options[:file])
     status = fel.write_mbr(mbr, $options[:format])

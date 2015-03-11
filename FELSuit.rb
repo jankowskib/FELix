@@ -151,7 +151,7 @@ class FELSuit < FELix
     end
     raise FELError, "Failed to boot to fes" unless info.mode == AWDeviceMode[:fes]
     # 4. Write MBR
-    yield "Writing new paratition table" << (format ? " and formating storage" :
+    yield "Writing new paratition table" << (format ? " and formatting storage" :
       "") if block_given?
     mbr = get_image_data(@structure.item_by_file("sunxi_mbr.fex"))
     dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file(
@@ -160,7 +160,7 @@ class FELSuit < FELix
     status = write_mbr(mbr, format)
     # HACK: If writing operation took more than 15 seconds assume device is formated
     if !format && (Time.now - time) > 15 then
-      yield ("Warning:".red << " Storage has been formated anyway!"), :info if block_given?
+      yield ("Warning:".red << " Storage has been formatted anyway!"), :info if block_given?
       format = true
     end
     raise FELError, "Cannot flash new partition table" if status.crc != 0
