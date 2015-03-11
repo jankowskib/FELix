@@ -62,6 +62,8 @@ end
 # Main class
 class SparseImage
 
+  attr_reader :chunks
+
   # Check sparse image validity
   # @param data [IO] image handle
   # @param offset [Integer] file offset
@@ -111,10 +113,11 @@ class SparseImage
 
   # Read chunks and yield data
   # @yieldparam [String] binary data of chunk
+  # @yieldparam [Symbol<ChunkType>] type of chunk
   def each_chunk
     @file.seek(@offset, IO::SEEK_SET)
     @file.seek(@header.file_hdr_sz, IO::SEEK_CUR)
-    @chunks.each_with_index do |c, idx|
+    @chunks.each do |c|
       @file.seek(@header.chunk_hdr_sz, IO::SEEK_CUR)
       data = ""
       case c.chunk_type
@@ -127,9 +130,11 @@ class SparseImage
         num = @file.read(4)
       when ChunkType[:dont_care]
         data << "\0" * (c.chunk_sz * @header.blk_sz)
-        # @todo consider not adding null data at end of image
       end
-      yield data
+      yield data, ChunkType.invert[c.chunk_type]
+    end
+  end
+
   def [](i)
     raise SparseError, "Chunk not found" unless @chunks[i]
     @file.seek(@offset, IO::SEEK_SET)
