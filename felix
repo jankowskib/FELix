@@ -1114,10 +1114,11 @@ end
 
 begin
   unless $options[:silent]
-    puts "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
-    puts "Warning:".red << "I don't give any warranty on this software"
-    puts "You use it at own risk!"
-    puts "----------------------"
+    version = "FEL".red << "ix " << FELIX_VERSION << " by Lolet"
+    puts version
+    puts "Warning:".red << " I don't give any warranty on this software" <<
+      ". You use it at own risk!"
+    puts "─" * version.length
   end
 
   unless $options[:dont_connect]
