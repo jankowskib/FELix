@@ -309,11 +309,11 @@ class FELix
     request.len = data.bytesize
     FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
     r = @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
-     @usb_out)
+     @usb_out, :timeout=>(5 * 1000))
     puts "Sent ".green << "#{r}".yellow << " bytes".green if $options[:verbose]
   # 2. Send a proper data
     FELHelpers.debug_packet(data, :write) if $options[:verbose]
-    r2 = @handle.bulk_transfer(:dataOut => data, :endpoint => @usb_out)
+    r2 = @handle.bulk_transfer(:dataOut => data, :endpoint => @usb_out, :timeout=>(5 * 1000))
     puts "Sent ".green << r2.to_s.yellow << " bytes".green if $options[:verbose]
   # 3. Get AWUSBResponse
   # Some request takes a lot of time (i.e. NAND format). Try to wait 60 seconds for response.
