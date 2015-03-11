@@ -199,24 +199,31 @@ class FELSuit < FELix
         threads = []
         threads << Thread.new do
           i = 0
-          sparse.each_chunk do |data|
+          sparse.each_chunk do |data, type|
             i+=1
             yield ("Decompressing #{item.name}"), :percent, (i * 100) / sparse.
               count_chunks if block_given?
-            queue << data
+            queue << [data, type]
           end
           sys_handle.close
         end
         threads << Thread.new do
           written = 0
-          while written < sparse.get_final_size
-            data = queue.pop
+          sparse.count_chunks.times do |chunk_num|
+            data, chunk_type = queue.pop
             written+=data.bytesize
-            write(curr_add, data, :none, :fes, written < sparse.get_final_size) do |ch|
+
+            # @todo Finish block should be always set if next block is :dont_care
+            #       according to packet log
+            finish = (chunk_num == sparse.count_chunks - 1) || sparse.chunks[
+              chunk_num + 1].chunk_type == ChunkType[:dont_care] && (chunk_num ==
+              sparse.count_chunks - 2)
+            write(curr_add, data, :none, :fes, !finish) do |ch|
               yield ("Writing #{item.name} @ 0x%08x" % (curr_add + (ch / 512))),
                 :percent, ((written - data.bytesize + ch) * 100) / sparse.
                 get_final_size if block_given?
             end
+            break if finish
             curr_add+=data.bytesize / 512
           end
           yield "Writing #{item.name}", :percent, 100 if block_given?
