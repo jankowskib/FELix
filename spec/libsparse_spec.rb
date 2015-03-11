@@ -49,4 +49,21 @@ describe SparseImage do
 
   end
 
+  describe '#[]' do
+    it 'gets first chunk of image' do
+      File.open("./spec/assets/sparse1.sample", "rb") do |f|
+        image = SparseImage.new(f)
+        data = image[0]
+        expect(Crc32.calculate(data, data.length, 0)).to eq(0x921FECBC)
+      end
+    end
+    it 'gets last chunk of image' do
+      File.open("./spec/assets/sparse1.sample", "rb") do |f|
+        image = SparseImage.new(f)
+        data = image[image.count_chunks - 1]
+        expect(Crc32.calculate(data, data.length, 0)).to eq(0x61A31E82)
+      end
+    end
+  end
+
 end

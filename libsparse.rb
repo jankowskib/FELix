@@ -130,6 +130,31 @@ class SparseImage
         # @todo consider not adding null data at end of image
       end
       yield data
+  def [](i)
+    raise SparseError, "Chunk not found" unless @chunks[i]
+    @file.seek(@offset, IO::SEEK_SET)
+    @file.seek(@header.file_hdr_sz, IO::SEEK_CUR)
+    toseek = 0
+    data = ""
+    @chunks.each_with_index do |c, idx|
+      skip = false
+      if i > idx
+          toseek += c.total_sz
+          next
+      end
+      @file.seek(toseek + @header.chunk_hdr_sz, IO::SEEK_CUR)
+      case c.chunk_type
+      when ChunkType[:raw]
+        data << @file.read(c.total_sz - @header.chunk_hdr_sz)
+      when ChunkType[:fill]
+        num = @file.read(4)
+        data << num * ((@header.blk_sz / 4) * c.chunk_sz)
+      when ChunkType[:crc32]
+        num = @file.read(4)
+      when ChunkType[:dont_care]
+        data << "\0" * (c.chunk_sz * @header.blk_sz)
+      end
+      return data
     end
   end
 
