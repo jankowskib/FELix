@@ -18,7 +18,7 @@ describe AWSysParaItem do
     expect(para.name).to eq("")
     expect(para.filename).to eq("")
     expect(para.verify_filename).to eq("")
-    expect(para.encrypt).to eq(0)
+    expect(para.encrypt).to eq(1)
 
     expect(para.to_binary_s.bytesize).to eq(97)
   end

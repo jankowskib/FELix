@@ -276,7 +276,7 @@ class AWSysParaItem < BinData::Record
   string :name, :length => 32, :trim_padding => true
   string :filename, :length => 32, :trim_padding => true
   string :verify_filename, :length => 32, :trim_padding => true # checksum of the item
-  uint8  :encrypt, :initial_value => 0 # 1 if item is unused
+  uint8  :encrypt, :initial_value => lambda { name.empty? ? 1 : 0 } # 1 if item is unused
 end
 
 # size 5496, send in FES mode (boot1.0 only) as param to FED
@@ -299,9 +299,7 @@ class AWSysPara < BinData::Record
                                                               # on other device there are place for 41
   uint32le :dl_num                                            # 0xA88
   array    :dl_items, :type => :aw_sys_para_item,
-    :initial_length => lambda { 17 }                          # 0xA8C (30 on other device)
-                                                              # 0xCD2 (if dl_num == 9)
-                                                              # (...) struct of 96 bytes?
+    :initial_length => 14                                     # 0xA8C (30 on other device)
   array    :unk8, :type => :uint8le, :initial_length => 1438
 end
 
