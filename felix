@@ -924,9 +924,8 @@ begin
         devices = LIBUSB::Context.new.devices(:idVendor => 0x1f3a,
          :idProduct => 0xefe8)
         puts "No device found in FEL mode!" if devices.empty?
-        i = 0
-        devices.each do |d|
-          puts "* %2d: (port %d) FEL device %d@%d %x:%x" % [++i, d.port_number,
+        devices.each_with_index do |d, i|
+          puts "* %2d: (port %d) FEL device %d@%d %x:%x" % [i, d.port_number,
             d.bus_number, d.device_address, d.idVendor, d.idProduct]
         end
         exit FELIX_SUCCESS
