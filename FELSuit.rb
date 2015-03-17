@@ -170,6 +170,8 @@ class FELSuit < FELix
     # 6. Write partitions
     dlinfo.item.each do |item|
       break if item.name.empty?
+      # Don't write udisk if format flag isn't set
+      next if item.name == "UDISK" && !format
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
