@@ -198,14 +198,21 @@ class FELSuit < FELix
         # 4096 % 512 == 0 so it shouldn't be a problem
         # but 4096 / 65536 it is
         queue = Queue.new
+        len = 0
         threads = []
         threads << Thread.new do
-          i = 0
+          i = 1
+
           sparse.each_chunk do |data, type|
-            i+=1
+            len += data.length
             yield ("Decompressing #{item.name}"), :percent, (i * 100) / sparse.
               count_chunks if block_given?
             queue << [data, type]
+            i+=1
+            # Optimize memory usage (try to keep heap at 128MB)
+            while len > (128 << 20) && !queue.empty?
+              sleep 0.5
+            end
           end
           sys_handle.close
         end
@@ -213,6 +220,7 @@ class FELSuit < FELix
           written = 0
           sparse.count_chunks.times do |chunk_num|
             data, chunk_type = queue.pop
+            len -= data.length
             written+=data.bytesize
 
             # @todo Finish block should be always set if next block is :dont_care
