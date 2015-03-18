@@ -946,6 +946,34 @@ begin
         end
         exit FELIX_SUCCESS
       end
+      opts.on("--verify-sparse path", String, "Check if a sparse image is valid") do |f|
+        begin
+          header = File.read(f, 64) # read first 64 bytes
+          raise SpraseError, "Not a sparse file" unless SparseImage.is_valid?(header)
+            File.open(f, "rb") do |file|
+              sparse = SparseImage.new(file)
+              puts "File: #{f}"
+              puts "Chunks: #{sparse.count_chunks}"
+
+              raw = sparse.chunks.count {|ch| ch.chunk_type == ChunkType[:raw]}
+              fill = sparse.chunks.count {|ch| ch.chunk_type == ChunkType[:fill]}
+              dc = sparse.chunks.count {|ch| ch.chunk_type == ChunkType[:dont_care]}
+              crc = sparse.chunks.count {|ch| ch.chunk_type == ChunkType[:crc32]}
+
+              puts "* RAW: #{raw}\n* FILL: #{fill}\n* DONT_CARE: #{dc}\n"
+              puts "* CRC #{crc}" if crc
+              puts "Uncompressed size: #{sparse.get_final_size} (#{sparse.
+                get_final_size >> 20} MB)"
+            end
+        rescue SparseError => e
+          puts "Invalid image: ".red << "#{e}"
+          exit FELIX_FAIL
+        rescue Errno::ENOENT
+          puts "File not found!"
+          exit FELIX_FAIL
+        end
+        exit FELIX_SUCCESS
+      end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
           dl = File.read(f)
