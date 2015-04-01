@@ -1011,6 +1011,17 @@ begin
       end
 
       opts.separator "* FEL/FES mode".light_blue.underline
+      opts.on("--wfd", "Block until device is detected") do
+        usb = LIBUSB::Context.new
+        begin
+          while usb.devices(:idVendor => 0x1f3a, :idProduct => 0xefe8).empty? do
+            sleep 0.5
+          end
+          exit FELIX_SUCCESS
+        rescue SignalException
+          exit FELIX_FATAL
+        end
+      end
       opts.on("--flash image", String, "Flash Livesuit image") do |f|
         $options[:action] = :flash
         $options[:file] = f
