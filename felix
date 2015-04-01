@@ -929,6 +929,11 @@ begin
         end
         exit FELIX_SUCCESS
       end
+      opts.on("--version", "Show version") do
+        puts FELIX_VERSION
+        exit FELIX_SUCCESS
+      end
+      opts.separator "* Debugging".light_blue.underline
       opts.on("--decode-traffic path", String, "Decode packets from Wireshark" <<
       " dump. Use with --verbose to dump full packet data") do |f|
         $options[:action] = :decode_packets
@@ -983,6 +988,7 @@ begin
         end
         exit FELIX_SUCCESS
       end
+      opts.separator "* Images".light_blue.underline
       opts.on("--image-info image", String, "Show LiveSuit's image info") do |f|
         begin
           FELHelpers.show_image_info(f)
@@ -1003,10 +1009,6 @@ begin
         $options[:action] = :generate_dram
         $options[:file] = f
         $options[:dont_connect] = true
-      end
-      opts.on("--version", "Show version") do
-        puts FELIX_VERSION
-        exit FELIX_SUCCESS
       end
 
       opts.separator "* FEL/FES mode".light_blue.underline
