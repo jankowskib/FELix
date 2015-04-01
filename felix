@@ -1055,6 +1055,10 @@ begin
         $options[:action] = :mbr
         $options[:file] = f
       end
+      opts.on("--mbr-dump", "Dump an MBR table from the device. NAND must" <<
+      " be enabled") do
+        $options[:action] = :mbr_dump
+      end
       opts.on("--nand how", [:on, :off], "Enable/disable NAND driver. Use 'on'" <<
       " or 'off' as parameter)") do |b|
         $options[:action] = :storage
@@ -1197,6 +1201,16 @@ begin
     status = fel.write_mbr(mbr, $options[:format])
     raise FELError, "Write failed (#{status.crc})" if status.crc != 0
     puts "[OK]".green unless $options[:verbose]
+  when :mbr_dump
+    print "* #{$options[:mode]}: Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+    data = fel.read(0, 16384, :none, :fes) do |b|
+      print "\r* Reading MBR".ljust(57) << "\t" unless $options[:verbose]
+      percent = (b * 100) / 16384
+      print "#{percent}%".ljust(4).light_blue unless percent == 100
+    end
+    mbr = AWMBR.read(data)
+    puts "[OK]".green unless $options[:verbose]
+    mbr.inspect
   when :storage
     print "* Setting flash state to #{$options[:how]}".ljust(57) << "\t" unless
       $options[:verbose]
