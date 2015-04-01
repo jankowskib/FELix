@@ -183,10 +183,13 @@ class FELSuit < FELix
         yield "Checking #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
-        valid_crc = get_image_data(crc_item)
-        if crc.crc == valid_crc.unpack("V*")[0] then
+        valid_crc = get_image_data(crc_item).unpack("V")[0]
+        if crc.crc == valid_crc then
           yield "#{item.name} is unchanged. Skipping...", :info if block_given?
           next
+        else
+          yield "#{item.name} needs to be reflashed! (#{crc.crc} !=" <<
+            " #{valid_crc})", :info if block_given?
         end
       end
       yield "Flashing #{item.name}" if block_given?
@@ -276,9 +279,9 @@ class FELSuit < FELix
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
         valid_crc = get_image_data(crc_item)
         # try again if verification failed
-        if crc.crc != valid_crc.unpack("V*")[0] then
+        if crc.crc != valid_crc.unpack("V")[0] then
           yield "CRC mismatch for #{item.name}: (#{crc.crc} !=" <<
-            " #{valid_crc.unpack("V*")[0]}). Trying again...", :info if block_given?
+            " #{valid_crc.unpack("V")[0]}). Trying again...", :info if block_given?
           redo
         end
       end
