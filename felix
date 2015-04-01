@@ -1086,10 +1086,10 @@ begin
       opts.on("-l", "--length len", MemoryInteger, "Length of data (used " <<
         "for --" << LengthCmds.join(", --") << "). You can use KB, MB, GB " <<
         "units.") do |l|
-        multipier = case l.upcase[-2..-1]
-          when "KB" then 1024
-          when "MB" then 1024*1024
-          when "GB" then 1024*1024*1024
+        multipier = case l[/.*\d+(.*)$/, 1].upcase
+        when "KB", "K" then 1024
+        when "MB", "M" then 1024*1024
+        when "GB", "G" then 1024*1024*1024
           else  1
         end
         $options[:length] = (l[0..1] == "0x" ? Integer(l, 16) : l.to_i) * multipier
