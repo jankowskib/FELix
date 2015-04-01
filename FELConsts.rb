@@ -17,7 +17,7 @@
 raise "Use ./felix to execute program!" if File.basename($0) == File.basename(__FILE__)
 
 # App version
-FELIX_VERSION = "1.0 RC3"
+FELIX_VERSION = "1.0 RC4"
 
 # Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
