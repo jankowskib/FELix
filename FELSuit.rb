@@ -379,10 +379,10 @@ class FELSuit < FELix
   # @raise [FELError] if image decryption failed
   def encrypted?
     img = File.read(@image, 16) # Read block
-    return false if img.byteslice(0, 8) == "IMAGEWTY"
+    return false if img.byteslice(0, 8) == FELIX_IMG_HEADER
     img = FELHelpers.decrypt(img, :header) if img.byteslice(0, 8) !=
-    "IMAGEWTY"
-    return true if img.byteslice(0, 8) == "IMAGEWTY"
+      FELIX_IMG_HEADER
+    return true if img.byteslice(0, 8) == FELIX_IMG_HEADER
     raise FELError, "Failed to decrypt image"
   end
 

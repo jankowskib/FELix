@@ -589,7 +589,7 @@ end
 # Unified Livesuit image structure
 class AWImage < BinData::Record
   endian :little
-  string  :magic, :length => 8, :asserted_value => "IMAGEWTY"
+  string  :magic, :length => 8, :asserted_value => FELIX_IMG_HEADER
   uint32  :image_format, :initial_value => 0x300
   choice  :header, :selection => :image_format do
     aw_image_header_v1 0x100

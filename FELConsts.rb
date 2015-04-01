@@ -17,10 +17,12 @@
 # App version
 FELIX_VERSION = "1.0 RC3"
 
-#Maximum data transfer length
+# Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
-#Sunxi NAND sector size
+# NAND sector size
 FELIX_SECTOR = 512
+# Image header string
+FELIX_IMG_HEADER = "IMAGEWTY"
 
 # RC6 keys
 RC6Keys = {

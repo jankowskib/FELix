@@ -271,14 +271,14 @@ class FELHelpers
     def show_image_info(file)
       encrypted = false
       img = File.read(file, 1024) # Read header
-      if img.byteslice(0, 8) != "IMAGEWTY"
+      if img.byteslice(0, 8) != FELIX_IMG_HEADER
         puts "Warning:".red << " Image is encrypted!".yellow
         encrypted = true
       end
       print "Decrypting..." if encrypted
       img = decrypt(img, :header) if encrypted
       raise FELError, "Unrecognized image format" if img.byteslice(0, 8) !=
-        "IMAGEWTY"
+        FELIX_IMG_HEADER
       # @todo read header version
       item_count = img[encrypted ? 0x38 : 0x3C, 4].unpack("V").first
       raise "Firmware contains no items!" if item_count == 0
