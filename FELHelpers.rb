@@ -292,6 +292,31 @@ class FELHelpers
       puts AWImage.read(img).inspect
     end
 
+    # Generate AW-style checksum for given data block
+    # @param data [String] memory block to compute
+    # @note Original C function is add_sum from u-boot-2011.09/sprite/sprite_verify.c
+    def checksum(data)
+      sum = 0
+      ints = data.unpack("V*")
+      ints.each do |i|
+        sum += i
+      end
+
+      case(data.length & 3)
+      when 0
+        sum
+      when 1
+        sum += ints[-1] & 0x000000ff
+      when 2
+        sum += ints[-1] & 0x0000ffff
+      when 3
+        sum += ints[-1] & 0x00ffffff
+      end
+
+      # Trim 64 -> 32 bit value
+      sum & 0xffffffff
+    end
+
     # Create DRAM config based on sys_config.fex, sys_config1.fex
     # @param file [String] sys_config.fex file
     # @param legacy [TrueClass,FalseClass] what strcture to create
