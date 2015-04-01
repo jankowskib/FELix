@@ -14,6 +14,8 @@
 #   limitations under the License.
 #
 
+raise "Use ./felix to execute program!" if File.basename($0) == File.basename(__FILE__)
+
 class FELix
 end
 
