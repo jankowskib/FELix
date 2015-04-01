@@ -39,11 +39,12 @@ describe SparseImage do
     it 'decompresses correctly a sparse file #1' do
       File.open("./spec/assets/sparse1.sample", "rb") do |f|
         image = SparseImage.new(f)
-        data = String.new
+        #data = String.new
+        crc = 0
         image.each_chunk do |chunk|
-          data << chunk
+          crc = Crc32.calculate(chunk, chunk.length, crc) 
         end
-        expect(Crc32.calculate(data, data.length, 0)).to eq(0xC7B4BA44)
+        expect(crc).to eq(0xC7B4BA44)
       end
     end
 
