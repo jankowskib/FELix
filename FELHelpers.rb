@@ -29,7 +29,6 @@ class LIBUSB::Transfer
   # @param [String, nil] data  some data to initialize the buffer with
   def alloc_buffer(len, data=nil)
     if !@buffer
-      free_buffer if @buffer
       # HACK: Avoid crash when memory is reallocated
       @buffer = FFI::MemoryPointer.new(FELIX_MAX_CHUNK, 1, false)
     end
