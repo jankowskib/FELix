@@ -175,8 +175,8 @@ class FELHelpers
           when FESCmd[:transmite]
             p = AWFESTrasportRequest.read(packet)
             print "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue
-            print FESTransmiteFlag.key(p.direction).to_s
-            print "(0x%04x)" % p.direction unless FESTransmiteFlag.key(p.direction)
+            print FESTransmiteFlag.key(p.flags).to_s
+            print "(0x%04x)" % p.flags unless FESTransmiteFlag.key(p.flags)
             puts ", tag #{p.tag}, index #{p.media_index}, addr 0x%08x, len %d," % [
               p.address, p.len] << " reserved %s" % p.reserved.inspect
           when FESCmd[:download], FESCmd[:verify_status], FELCmd[:download],

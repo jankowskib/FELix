@@ -85,7 +85,7 @@ class AWFESTrasportRequest < BinData::Record # size 16
   uint32le :address
   uint32le :len
   uint8    :media_index, :initial_value => FESIndex[:dram]
-  uint8    :direction, :initial_value => FESTransmiteFlag[:write]
+  uint8    :flags, :initial_value => FESTransmiteFlag[:write]
   array    :reserved, :type => :uint8, :initial_length  => 2, :value => 0
 end
 

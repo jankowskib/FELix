@@ -759,13 +759,12 @@ class FELix
     if direction == :write
       raise FELError, "Memory not specifed" unless opts[:memory]
       raise FELError, "Address not specifed" unless opts[:address]
-      raise FELError, "Command is not usable in FEL mode" if $options[:mode] == :fel
 
       total_len = opts[:memory].bytesize
       address = opts[:address]
 
       request = AWFESTrasportRequest.new # Little optimization
-      request.direction = FESTransmiteFlag[direction]
+      request.flags = FESTransmiteFlag[direction]
       request.media_index = FESIndex[opts[:media_index]]
       # Set :start tag when writing to physical memory
       request.flags |= FESTransmiteFlag[:start] if request.media_index>0
@@ -815,7 +814,7 @@ class FELix
       request = AWFESTrasportRequest.new
       address = opts[:address]
       request.len = remain_len = length = opts[:length]
-      request.direction = FESTransmiteFlag[direction]
+      request.flags = FESTransmiteFlag[direction]
       request.media_index = FESIndex[opts[:media_index]]
 
       while remain_len>0
@@ -848,7 +847,7 @@ class FELix
       end
       result
     else
-      raise "Unknown direction '(#{direction})'"
+      raise FELError, "Unknown direction '(#{direction})'"
     end
   end
 
