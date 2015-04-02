@@ -292,15 +292,8 @@ class FELix
 
   # Clean up on and finish program
   def bailout
-    print "* Cleaning up".ljust(57) << "\t"
     @handle.release_interface(0) if @handle
     @handle.close if @handle
-    puts "[OK]".green
-  rescue => e
-    puts "[FAIL]".red
-    puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
-    $exit_code = FELIX_FAIL
-  end
   end
 
 end
@@ -881,7 +874,15 @@ rescue => e
   puts "#{e.message} at #{e.backtrace.join("\n")}"
   $exit_code = FELIX_FATAL
 ensure
-  # Cleanup the handle
-  fel.bailout if fel
-  exit $exit_code
 end
+  begin
+    print "* Cleaning up".ljust(57) << "\t"
+    # Cleanup the handle
+    fel.bailout if fel
+    puts "[OK]".green
+    exit $exit_code
+  rescue => e
+    puts "[FATAL]".red
+    puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
+    exit FELIX_FAIL
+  end
