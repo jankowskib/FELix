@@ -135,7 +135,7 @@ class FELSuit < FELix
   # @yieldparam [Symbol] message type (:info, :percent, :action)
   # @yieldparam [Integer] message argument
   def flash(format = false, verify = true)
-    return flash_legacy(format) if legacy?
+    return flash_legacy(format) {|i| yield i} if legacy?
     # 1. Let's check device mode
     info = get_device_status
     raise FELError, "Failed to get device info. Try to reboot!" unless info
