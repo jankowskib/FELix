@@ -93,28 +93,17 @@ class FELSuit < FELix
 
     sys_para = AWSysPara.new
     sys_para.dram = FELHelpers.create_dram_config(cfg, leg)
-    cfg_ini = IniFile.new( :content => cfg, :encoding => "UTF-8")
-    sys_para.part_num = cfg_ini[:part_num]["num"]
-    sys_para.part_num.times do |n|
-      sys.part_items[n] = AWSysParaPart.new(
-      {
-        :address_high => cfg_ini["partition#{n}"]["size_hi"],
-        :address_low => cfg_ini["partition#{n}"]["size_lo"],
-        :classname => cfg_ini["partition#{n}"]["class_name"],
-        :name => cfg_ini["partition#{n}"]["name"],
-        :user_type => cfg_ini["partition#{n}"]["user_type"],
-        :ro => cfg_ini["partition#{n}"]["ro"]
-      })
+
+    mbr = AWMBR.read(get_image_data(@structure.item_by_file("sunxi_mbr.fex")))
+    sys_para.part_num = mbr.mbr.part_count
+    mbr.mbr.part.each_with_index do |item, n|
+      sys_para.part_items[n] = AWSysParaPart.new(item)
     end
-    sys_para.dl_num = cfg_ini[:down_num]["down_num"]
-    sys_para.dl_num.times do |n|
-      sys_para.dl_items[n] = AWSysParaItem.new(
-      {
-        :name => cfg_ini["download#{n}"]["part_name"],
-        :filename => cfg_ini["download#{n}"]["pkt_name"],
-        :encrypt => cfg_ini["download#{n}"]["encrypt"],
-        :verify_filename => cfg_ini["download#{n}"]["verify_file"],
-      })
+
+    dlinfo = AWDownloadInfo.read(get_image_data(@structure.item_by_file("dlinfo.fex")))
+    sys_para.dl_num = dlinfo.item_count
+    dlinfo.item.each_with_index do |item, n|
+        sys_para.dl_items[n] = AWSysParaItem.new(item)
     end
 
     yield "Sending DRAM config" if block_given?
@@ -123,7 +112,7 @@ class FELSuit < FELix
     magic_write(:de, get_image_data(@structure.item_by_file("fed_nand.axf")),
       0x40430000)
     yield "Starting FED" if block_given?
-    run(0x40430000, :fes, [:fed, :has_para], [0x40900000, 0x40901000, 0, 0])
+    run(0x40430000, :fes, [:fed, :has_param], [0x40900000, 0x40901000, 0, 0])
 
   end
 
