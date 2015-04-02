@@ -1,19 +1,3 @@
-require 'spec_helper'
-
-require 'hex_string'
-require 'hexdump'
-require 'colorize'
-require 'optparse'
-require 'libusb'
-require 'bindata'
-require 'crc32'
-require 'rc6'
-require 'thread'
-require 'inifile'
-require 'fileutils'
-require 'stringio'
-
-require_relative '../FELHelpers'
 
 describe FELHelpers do
   describe '::checksum' do

@@ -551,7 +551,7 @@ rescue OptionParser::InvalidArgument => e
 rescue OptionParser::InvalidOption
   puts "Unknown option. Type felix --help to see usage"
   exit FELIX_FAIL
-end
+end unless $FELIX_TEST_CASE
 
 begin
   unless $options[:silent]
@@ -874,7 +874,6 @@ rescue => e
   puts "#{e.message} at #{e.backtrace.join("\n")}"
   $exit_code = FELIX_FATAL
 ensure
-end
   begin
     print "* Cleaning up".ljust(57) << "\t"
     # Cleanup the handle
@@ -886,3 +885,4 @@ end
     puts "Error: #{e.message} at #{e.backtrace.join("\n")}"
     exit FELIX_FAIL
   end
+end unless $FELIX_TEST_CASE

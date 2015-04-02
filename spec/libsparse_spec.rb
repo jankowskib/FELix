@@ -1,7 +1,3 @@
-require 'spec_helper'
-require 'crc32'
-
-require_relative '../libsparse'
 
 describe SparseImage do
   describe '#new' do
@@ -42,7 +38,7 @@ describe SparseImage do
         #data = String.new
         crc = 0
         image.each_chunk do |chunk|
-          crc = Crc32.calculate(chunk, chunk.length, crc) 
+          crc = Crc32.calculate(chunk, chunk.length, crc)
         end
         expect(crc).to eq(0xC7B4BA44)
       end

@@ -1,16 +1,3 @@
-require 'colorize'
-require 'optparse'
-require 'libusb'
-require 'bindata'
-require 'crc32'
-require 'rc6'
-require 'inifile'
-
-require 'spec_helper'
-
-require_relative '../FELConsts'
-require_relative '../FELStructs'
-require_relative '../FELHelpers'
 
 describe AWSysParaItem do
   it "generates valid structure" do
