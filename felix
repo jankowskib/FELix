@@ -252,6 +252,7 @@ class FELix
 
   # Open device, and setup endpoints
   # @param device [LIBUSB::Device] a device
+  # @raise [FELFatal]
   def initialize(device = nil)
     if device
       raise FELFatal, "Unexcepted argument type: #{device.inspect}" unless device.
@@ -870,7 +871,7 @@ rescue FELFatal => e
   puts "[FATAL]\t".red << "#{e.message}"
   $exit_code = FELIX_FATAL
 rescue LIBUSB::ERROR_NOT_SUPPORTED
-  puts "[FATAL]\t".red << "You must install libusb filter on your usb device driver"
+  puts "[FATAL]\t".red << "You must install a libusb filter on your usb device driver"
   $exit_code = FELIX_FAIL
 rescue SignalException
   puts "\n[HALT]\t".red << "Action aborted"

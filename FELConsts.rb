@@ -83,8 +83,8 @@ FESCmd = {
   :unseqmem_read                   => 0x212, # unsequenced memory read
   :unseqmem_write                  => 0x213,
   # From https://github.com/allwinner-zh/bootloader unavailable on most tablets <2015 year
-  :fes_reset_cpu				           => 0x214,
-  :low_power_manger 			         => 0x215,
+  :fes_reset_cpu                   => 0x214,
+  :low_power_manger                => 0x215,
   :force_erase                     => 0x220,
   :force_erase_key                 => 0x221,
   :query_secure                    => 0x230
@@ -114,11 +114,11 @@ AWUBootWorkMode = {
 # Used as argument for FES_SET_TOOL_MODE. Names are self-explaining
 AWActions = {
   :none                             => 0x0,
-  :normal		                       	=> 0x1,
-  :reboot		                       	=> 0x2,
-  :shutdown	                      	=> 0x3,
-  :reupdate	                      	=> 0x4,
-  :boot		                         	=> 0x5
+  :normal                           => 0x1,
+  :reboot                           => 0x2,
+  :shutdown                         => 0x3,
+  :reupdate                         => 0x4,
+  :boot                             => 0x5
 }
 
 # Flag for FESCmd[:transmite]
