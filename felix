@@ -730,7 +730,7 @@ begin
     if $options[:item]
       # Extract single item
       fn = "#{$options[:file]}_#{$options[:item]}"
-      fn = "#{Dir.pwd}\\#{File.basename(fn)}"
+      fn = "#{Dir.pwd}/#{File.basename(fn)}"
       print "* Extracting to #{fn}".ljust(57) << "\t"
       item = fel.structure.item_by_file($options[:item])
       raise FELError, "Item not found!" unless item
@@ -748,7 +748,7 @@ begin
       puts "[OK]".green
     else
       # Extract everything we find
-      dir = "#{Dir.pwd}\\#{File.basename($options[:file])}_unpacked"
+      dir = "#{Dir.pwd}/#{File.basename($options[:file])}_unpacked"
       puts "* Extracting to #{dir}"
       unless File.exists?(dir)
         print "* Creating #{dir}".ljust(57) << "\t"
@@ -760,10 +760,10 @@ begin
         # Trim silly addition from imgRePacker
         path = path[12..-1] if path.start_with?("imgRePacker")
         file = File.basename(path)
-        path = "#{dir}\\#{File.dirname(path)}"
+        path = "#{dir}/#{File.dirname(path)}"
         print "* #{file}".ljust(57) << "\t"
         FileUtils.mkdir_p(path) unless File.exists?(path)
-        File.open("#{path}\\#{file}", "w") do |f|
+        File.open("#{path}/#{file}", "w") do |f|
           written = 0
           if $options[:decompress] && SparseImage.is_valid?(fel.get_image_data(
             it, 64, 64))
