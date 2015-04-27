@@ -74,7 +74,7 @@ class FELHelpers
       when 0x1650 then "Allwinner A23 (sun7i)"
       when 0x1651 then "Allwinner A20 (sun7i)"
       else
-        "Unknown: (0x#{id >> 8 & 0xFFFF})"
+        "Unknown: (0x%x)" % (id >> 8 & 0xFFFF)
       end
       board << ", revision #{id & 0xFF}"
     end
