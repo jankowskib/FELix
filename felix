@@ -348,7 +348,7 @@ begin
       opts.on("--verify-sparse path", String, "Check if a sparse image is valid") do |f|
         begin
           header = File.read(f, 64) # read first 64 bytes
-          raise SpraseError, "Not a sparse file" unless SparseImage.is_valid?(header)
+          raise SparseError, "Not a sparse file" unless SparseImage.is_valid?(header)
             File.open(f, "rb") do |file|
               sparse = SparseImage.new(file)
               puts "File: #{f}"
