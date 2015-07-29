@@ -156,7 +156,7 @@ class FELix
     end
 
     while remain_len>0
-      request.address = address
+      request.address = address.to_i
       if remain_len / FELIX_MAX_CHUNK == 0
         request.len = remain_len
       else
@@ -201,7 +201,7 @@ class FELix
     end
 
     while total_len>0
-      request.address = address
+      request.address = address.to_i
       if total_len / FELIX_MAX_CHUNK == 0
         request.len = total_len
       else
@@ -366,7 +366,7 @@ class FELix
       request.flags |= FESTransmiteFlag[:start] if request.media_index>0
 
       while total_len>0
-        request.address = address
+        request.address = address.to_i
         if total_len / FELIX_MAX_CHUNK == 0
           request.len = total_len
         else
@@ -399,7 +399,7 @@ class FELix
       request.media_index = FESIndex[opts[:media_index]]
 
       while remain_len>0
-        request.address = address
+        request.address = address.to_i
         if remain_len / FELIX_MAX_CHUNK == 0
           request.len = remain_len
         else
