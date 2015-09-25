@@ -647,11 +647,11 @@ begin
   when :write
     header = File.read($options[:file], 64) # read first 64 bytes
     if SparseImage.is_valid?(header) # Decompress sparse image
+      unsparsed = String.new
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
         print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
         i = 0
-        unsparsed = String.new
         sparse.each_chunk do |chunk|
           i+=1
           print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
