@@ -74,6 +74,7 @@ class FELHelpers
       when 0x1650 then "Allwinner A23 (sun7i)"
       when 0x1651 then "Allwinner A20 (sun7i)"
       when 0x1667 then "Allwinner A33 (sun8i)"
+      when 0x1673 then "Allwinner A83 (sun8i)"
       else
         "Unknown: (0x%x)" % (id >> 8 & 0xFFFF)
       end
