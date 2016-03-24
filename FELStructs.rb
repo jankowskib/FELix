@@ -52,6 +52,20 @@ class AWUSBRequest < BinData::Record # size 32
   array    :reserved, :type => :uint8, :initial_length  => 10, :value => 0
 end
 
+#0000   06 02
+#       00 00 00 00
+#       00 80 00 00 => data_len
+#       03 7f
+#       01 00
+#0010   41 57 55 43                                      AWUC
+class AWUSBRequestV2 < BinData::Record # size 20, used on A83T
+  uint32le :cmd,       :initial_value => FESCmd[:download]
+  uint32le :address,   :initial_value => 0
+  uint32le :len,       :initial_value => 0
+  uint32le :tag,       :initial_value => 0
+  string   :magic,     :length => 4, :initial_value => "AWUC"
+end
+
 class AWUSBResponse < BinData::Record # size 13
   string   :magic, :length => 4, :initial_value => "AWUS"
   uint32le :tag
