@@ -642,39 +642,27 @@ begin
       $options[:length] = part.lenlo * FELIX_SECTOR
       $options[:mode] = :fes
     end
+    f = File.open($options[:file], "w")
     print "* #{$options[:mode]}: Reading data".ljust(57) << "\t" unless $options[:verbose]
     data = fel.read($options[:address], $options[:length], $options[:tags],
-      $options[:mode]) do |b|
+      $options[:mode]) do |b, chunk|
         print ("\r* #{$options[:mode]}: Reading data (" <<
         "#{b}/#{$options[:length]} bytes)").ljust(57) << "\t" unless $options[:verbose]
         percent = (b * 100) / $options[:length]
+        f.write(chunk)
         print "#{percent}%".ljust(4).light_blue unless percent == 100
     end
-    File.open($options[:file], "w") { |f| f.write(data) }
     puts "[OK]".green unless $options[:verbose]
   when :write
     header = File.read($options[:file], 64) # read first 64 bytes
-    if SparseImage.is_valid?(header) # Decompress sparse image
-      unsparsed = String.new
+    file_size = 0
+    if SparseImage.is_valid?(header)
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
-        print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-        i = 0
-        sparse.each_chunk do |chunk|
-          i+=1
-          print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-          percent =  (i * 100) / sparse.count_chunks
-          print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
-          unsparsed << chunk
-        end
-        puts "[OK]".green unless $options[:verbose]
+        file_size = sparse.get_final_size
       end
-      file = unsparsed
     else
-      file = File.read($options[:file])
-      print ("* Read file (#{file.bytesize} bytes" <<
-      ")").ljust(57) << "\t" unless $options[:verbose]
-      puts "[OK]".green unless $options[:verbose]
+      file_size = File.size($options[:file])
     end
     if $options[:item]
       # Read all data from MBR
@@ -700,15 +688,95 @@ begin
       $options[:address] = part.address_low
       real_len = part.lenlo * FELIX_SECTOR
       raise FELError, "File is too big (partition size is " <<
-        "#{real_len})" if file.bytesize > real_len
+        "#{real_len})" if file_size > real_len
     end
-    fel.write($options[:address], file, $options[:tags], $options[:mode]) do |b|
-      print ("\r* #{$options[:mode]}: Writing data (" <<
-      "#{b}/#{file.bytesize} bytes)").ljust(57) << "\t" unless $options[:verbose]
-      percent = (b * 100) / file.bytesize
-      print "#{percent}%".ljust(4).light_blue unless percent == 100
+    print ("* Reading a file (#{file_size} bytes)")
+    curr_add = $options[:address]
+    if SparseImage.is_valid?(header)
+      File.open($options[:file], "rb") do |file|
+        sparse = SparseImage.new(file)
+        queue = Queue.new
+        len = 0
+        threads = []
+        threads << Thread.new do
+          i = 1
+          sparse.each_chunk do |ch, type|
+            len += ch.length
+            print ("\r* Decompressing...").ljust(57) << "\t" unless $options[:verbose]
+            queue << [ch, type]
+            i+=1
+            # Optimize memory usage (try to keep heap at 128MB)
+            while len > (128 << 20) && !queue.empty?
+              sleep 0.5
+            end
+          end
+        end
+        threads << Thread.new do
+          written = 0
+          sparse.count_chunks.times do |chunk_num|
+            data, chunk_type = queue.pop
+            len -= data.length
+            written+=data.bytesize
+
+            finish = (chunk_num == sparse.count_chunks - 1) || sparse.chunks[
+              chunk_num + 1].chunk_type == ChunkType[:dont_care] && (chunk_num ==
+              sparse.count_chunks - 2)
+            fel.write(curr_add, data, $options[:tags], $options[:mode], !finish) do |ch|
+              print ("\r* #{$options[:mode]}: Writing data (" <<
+              "#{written}/#{file_size} bytes)").ljust(57) << "\t" unless $options[:verbose]
+              percent = (written * 100) / file_size
+              print "#{percent}%".ljust(4).light_blue unless percent == 100
+            end
+            break if finish
+            curr_add+=(data.bytesize / FELIX_SECTOR)
+          end
+        end
+        threads.each {|t| t.join}
+      end
+    else
+      queue = Queue.new
+      len = 0
+      threads = []
+      # reader
+      threads << Thread.new do
+        File.open($options[:file], "rb") do |file|
+          while not file.eof?
+            chunk = file.read(FELIX_MAX_CHUNK)
+            len+=chunk.bytesize
+            print ("\r* Reading a file").ljust(57) << "\t" unless $options[:verbose]
+            queue << chunk
+            # Optimize memory usage (try to keep heap at 128MB)
+            while len > (128 << 20) && !queue.empty?
+              sleep 0.5
+            end
+          end
+        end
+      end
+      # writter
+      threads << Thread.new do
+        written = 0
+        while written < file_size
+          data = queue.pop
+          written+=data.bytesize
+          len-=data.bytesize
+          fel.write(curr_add, data, $options[:tags], $options[:mode], written < file_size) do |b|
+            print ("\r* #{$options[:mode]}: Writing data (" <<
+            "#{written}/#{file_size} bytes)").ljust(57) << "\t" unless $options[:verbose]
+            percent = (written * 100) / file_size
+            print "#{percent}%".ljust(4).light_blue unless percent == 100
+          end
+          curr_add+=(data.bytesize / FELIX_SECTOR)
+        end
+      end
+      threads.each {|t| t.join}
     end
     puts "[OK]".green unless $options[:verbose]
+    unless ([:uboot, :boot0] & $options[:tags]).empty?
+      print ("\r* Veryfing...").ljust(57) << "\t" unless $options[:verbose]
+      resp = fel.verify_status(:uboot)
+      raise FELFatal, "Failed to update u-boot" if resp.crc != 0
+      puts "[OK]".green unless $options[:verbose]
+    end
   when :run
     print ("* #{$options[:mode]}: Executing code @ 0x%08x" %
       $options[:address]).ljust(57) << "\t" unless $options[:verbose]
@@ -823,7 +891,7 @@ begin
     last_type = :action
     fel.flash($options[:format]) do |s, type, arg|
       puts "[OK]".ljust(4).green unless $options[:verbose] || type == :percent ||
-        last_type == :info
+        last_type == :info || type == :warn
       if type == :percent && arg
         str = ""
         str << "\r* #{s}".ljust(57) << "\t" unless $options[:verbose]
@@ -831,6 +899,8 @@ begin
         print str
       elsif type == :info
         puts "  #{s}" unless $options[:verbose]
+      elsif type == :warn
+        puts "[#{s}]".ljust(4).yellow unless $options[:verbose]
       else
         print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
       end
