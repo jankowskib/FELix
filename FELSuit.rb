@@ -245,11 +245,31 @@ class FELSuit < FELix
         # reader
         threads << Thread.new do
           read = 0
-          get_image_data(part) do |data|
-            read+=data.bytesize
-            yield "Reading #{item.name}", :percent, (read * 100) / part.
-              data_len_low if block_given?
-            queue << data
+          if item.name == "sysrecovery"
+          # sysrecovery is a partition that consist the flashed image
+            data_size = File.size(@image)
+            File.open(@image, "rb") do |f|
+              while not f.eof?
+                chunk = f.read(FELIX_MAX_CHUNK)
+                read+=chunk.bytesize
+                len+=chunk.bytesize
+                yield "Reading #{item.name}", :percent, (read * 100) / data_size if block_given?
+                queue << chunk
+                while len > (128 << 20) && !queue.empty?
+                  sleep 0.5
+                end
+              end
+            end
+          else
+            get_image_data(part) do |data|
+              read+=data.bytesize
+              len+=data.bytesize
+              yield "Reading #{item.name}", :percent, (read * 100) / data_size if block_given?
+              queue << data
+              while len > (128 << 20) && !queue.empty?
+                sleep 0.5
+              end
+            end
           end
         end
         # writter
