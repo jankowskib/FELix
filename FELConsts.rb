@@ -17,7 +17,7 @@
 raise "Use ./felix to execute program!" if File.basename($0) == File.basename(__FILE__)
 
 # App version
-FELIX_VERSION = "1.0 RC4"
+FELIX_VERSION = "1.0 RC5"
 
 # Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
@@ -162,6 +162,7 @@ FESIndex = {
 # these below are usable on boot 1.0
   :nand                            => 0x2,
   :card                            => 0x3,
+  :spinor                          => 0x3,
   :nand2                           => 0x20 # encrypted data write?
 }
 
