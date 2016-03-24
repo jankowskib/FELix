@@ -268,12 +268,16 @@ class FELSuit < FELix
         yield "Verifying #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
-        valid_crc = get_image_data(crc_item)
-        # try again if verification failed
-        if crc.crc != valid_crc.unpack("V")[0] then
-          yield "CRC mismatch for #{item.name}: (#{crc.crc} !=" <<
+        if crc_item
+          valid_crc = get_image_data(crc_item)
+          # try again if verification failed
+          if crc.crc != valid_crc.unpack("V")[0] then
+            yield "CRC mismatch for #{item.name}: (#{crc.crc} !=" <<
             " #{valid_crc.unpack("V")[0]}). Trying again...", :info if block_given?
-          redo
+            redo
+          end
+        else
+          yield "SKIP", :warn if block_given?
         end
       end
     end
@@ -285,12 +289,18 @@ class FELSuit < FELix
     write(0, uboot, :uboot, :fes) do |n|
       yield "Writing u-boot", :percent, (n * 100) / uboot.bytesize if block_given?
     end
+    yield "Veryfing u-boot" if block_given?
+    resp = verify_status(:uboot)
+    raise FELFatal, "Failed to update u-boot" if resp.crc != 0
     # 9. Write boot0
     boot0 = get_image_data(@structure.item_by_file("boot0_nand.fex"))
     yield "Writing boot0" if block_given?
     write(0, boot0, :boot0, :fes) do |n|
       yield "Writing boot0", :percent, (n * 100) / boot0.bytesize if block_given?
     end
+    yield "Veryfing boot0" if block_given?
+    resp = verify_status(:boot0)
+    raise FELFatal, "Failed to update boot0" if resp.crc != 0
     # 10. Reboot
     yield "Rebooting" if block_given?
     set_tool_mode(:usb_tool_update, :none)
