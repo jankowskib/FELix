@@ -773,8 +773,8 @@ begin
     puts "[OK]".green unless $options[:verbose]
     unless ([:uboot, :boot0] & $options[:tags]).empty?
       print ("\r* Veryfing...").ljust(57) << "\t" unless $options[:verbose]
-      resp = fel.verify_status(:uboot)
-      raise FELFatal, "Failed to update u-boot" if resp.crc != 0
+      resp = fel.verify_status($options[:tags])
+      raise FELFatal, "Verification failed" if resp.crc != 0
       puts "[OK]".green unless $options[:verbose]
     end
   when :run
