@@ -137,18 +137,19 @@ class FELix
   # @param length [Integer] a size of the read memory
   # @param tags [Symbol, Array<AWTags>] an operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] an operation mode `:fel` or `:fes`
-  # @return [String] the requested memory block
+  # @return [String] the requested memory block if block has only one parameter
   # @raise [FELError, FELFatal]
   # @yieldparam [Integer] bytes read as far
+  # @yieldparam [String] read data chunk of `FELIX_MAX_CHUNK`
   # @note Not usable on the legacy fes (boot1.0)
-  def read(address, length, tags=[:none], mode=:fel)
+  def read(address, length, tags=[:none], mode=:fel, &block)
     raise FELError, "The length is not specifed" unless length
     raise FELError, "The address is not specifed" unless address
     result = ""
     remain_len = length
     request = AWFELMessage.new
-    request.cmd = FELCmd[:upload] if mode == :fel
-    request.cmd = FESCmd[:upload] if mode == :fes
+    request.cmd = mode == :fel ? FELCmd[:upload] : FESCmd[:upload]
+    request.address = address.to_i
     if tags.kind_of?(Array)
       tags.each {|t| request.flags |= AWTags[t]}
     else
@@ -156,24 +157,24 @@ class FELix
     end
 
     while remain_len>0
-      request.address = address.to_i
       if remain_len / FELIX_MAX_CHUNK == 0
         request.len = remain_len
       else
         request.len = FELIX_MAX_CHUNK
       end
 
-      result << transfer(:pull, request, size: request.len)
+      data = transfer(:pull, request, size: request.len)
+      result << data if block.arity < 2
       remain_len-=request.len
 
       # if EFEX_TAG_DRAM isnt set we read nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
         next_sector=request.len / 512
-        address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
+        request.address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
       else
-        address+=request.len
+        request.address+=request.len
       end
-      yield length-remain_len if block_given?
+      yield length-remain_len, data if block_given?
     end
     result
   end
@@ -194,6 +195,7 @@ class FELix
     start = 0
     request = AWFELMessage.new
     request.cmd = mode == :fel ? FELCmd[:download] : FESCmd[:download]
+    request.address = address.to_i
     if tags.kind_of?(Array)
       tags.each {|t| request.flags |= AWTags[t]}
     else
@@ -201,7 +203,6 @@ class FELix
     end
 
     while total_len>0
-      request.address = address.to_i
       if total_len / FELIX_MAX_CHUNK == 0
         request.len = total_len
       else
@@ -218,9 +219,9 @@ class FELix
       # if EFEX_TAG_DRAM isnt set we write nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
         next_sector=request.len / 512
-        address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
+        request.address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
       else
-        address+=request.len
+        request.address+=request.len
       end
       yield start if block_given? # yield sent bytes
     end
