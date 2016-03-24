@@ -161,16 +161,20 @@ class FELSuit < FELix
     # 6. Write partitions
     dlinfo.item.each do |item|
       break if item.name.empty?
+      sparsed = false
       # Don't write udisk if format flag isn't set
       next if item.name == "UDISK" && !format
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
 
+      # Check if the current item is a sparse image
+      sparsed = SparseImage.is_valid?(get_image_data(part, 64))
+
       # Check CRC of the image if it's the same - no need to spam NAND with the same data
       # This should speed up flashing process A LOT
       # But if format flag is set that's just waste of time
-      unless format || item.verify_filename.empty? || item.name == "system" then
+      unless format || item.verify_filename.empty? || sparsed then
         yield "Checking #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
@@ -185,7 +189,7 @@ class FELSuit < FELix
       end
       yield "Flashing #{item.name}" if block_given?
       curr_add = item.address_low
-      if item.name == "system"
+      if sparsed
         sys_handle = get_image_handle(part)
         sparse = SparseImage.new(sys_handle, part.off_len_low)
         # @todo
@@ -199,7 +203,7 @@ class FELSuit < FELix
 
           sparse.each_chunk do |data, type|
             len += data.length
-            yield ("Decompressing #{item.name}"), :percent, (i * 100) / sparse.
+            yield ("Decompressing sparse image #{item.name}"), :percent, (i * 100) / sparse.
               count_chunks if block_given?
             queue << [data, type]
             i+=1
@@ -236,6 +240,8 @@ class FELSuit < FELix
       else
         queue = Queue.new
         threads = []
+        len = 0
+        data_size = part.data_len_low
         # reader
         threads << Thread.new do
           read = 0
@@ -249,21 +255,21 @@ class FELSuit < FELix
         # writter
         threads << Thread.new do
           written = 0
-          while written < part.data_len_low
+          while written < data_size
             data = queue.pop
             written+=data.bytesize
-            write(curr_add, data, :none, :fes, written < part.data_len_low) do
-              yield "Writing #{item.name}", :percent, (written * 100) / part.
-                data_len_low if block_given?
+            len-=data.bytesize
+            write(curr_add, data, :none, :fes, written < data_size) do
+              yield "Writing #{item.name}", :percent, (written * 100) / data_size if block_given?
             end
-            curr_add+=data.bytesize / 512
+            curr_add+=(data.bytesize / FELIX_SECTOR)
           end
           yield "Writing #{item.name}", :percent, 100 if block_given?
         end
         threads.each {|t| t.join}
       end
       # Verify CRC of written data
-      if verify && !(["system", "UDISK"].include?(item.name)) then
+      if verify && item.name != "UDISK" && !sparsed then
         # @todo Check why system partition's CRC is not matching
         yield "Verifying #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
