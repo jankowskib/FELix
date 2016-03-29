@@ -475,6 +475,12 @@ begin
         "--address and --length") { $options[:action] = :crc }
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
       opts.on("--info", "Get code exection status") { $options[:action] = :info }
+      opts.on("--status-secure", "Get security system status flag") do
+         $options[:action] = :query_secure
+      end
+      opts.on("--status-storage", "Get storage type used to boot") do
+         $options[:action] = :query_storage
+      end
 
       opts.separator "\n* Options".light_blue.underline
       opts.on("-d", "--device num", Integer,
@@ -595,6 +601,16 @@ begin
     status = fel.info
     puts "[OK]".green unless $options[:verbose]
     AWFESInfoResponse.read(status).pp
+  when :query_secure
+    print "* Checking security flag".ljust(57) << "\t" unless $options[:verbose]
+    status = fel.query_secure
+    puts "[OK]".green unless $options[:verbose]
+    puts "* Security flag is: %s (%d)" % [ status.to_s.yellow, AWSecureStatusMode[status] ]
+  when :query_storage
+    print "* Checking storage flag".ljust(57) << "\t" unless $options[:verbose]
+    status = fel.query_storage
+    puts "[OK]".green unless $options[:verbose]
+    puts "* Used storage is: %s" % status.to_s.yellow
   when :mbr
     print ("* Writing new paratition table" << ($options[:format] ? " and formatting storage" :
       "")).ljust(57) << "\t" unless $options[:verbose]

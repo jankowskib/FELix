@@ -69,7 +69,7 @@ FESCmd = {
   :download                        => 0x206, # [@write]
   :upload                          => 0x207, # [@read]
   :verify                          => 0x208, # check CRC of given memory block
-  :query_storage                   => 0x209, # used to check if we boot from nand or sdcard
+  :query_storage                   => 0x209, # [@query_storage] used to check if we boot from nand or sdcard
   :flash_set_on                    => 0x20A, # [@set_storage_state] exec sunxi_sprite_init(0) => no data
   :flash_set_off                   => 0x20B, # [@set_storage_state] exec sunxi_sprite_exit(1) => no data
   :verify_value                    => 0x20C, # [@verify_value] compute and return CRC of given mem block => AWFESVerifyStatusResponse
@@ -87,7 +87,7 @@ FESCmd = {
   :low_power_manger                => 0x215,
   :force_erase                     => 0x220,
   :force_erase_key                 => 0x221,
-  :query_secure                    => 0x230
+  :query_secure                    => 0x230 # [@query_secure]
 }
 
 # Mode returned by FELCmd[:verify_device]
@@ -97,6 +97,14 @@ AWDeviceMode = {
   :fes                             => 0x2, # also :srv
   :update_cool                     => 0x3,
   :update_hot                      => 0x4
+}
+
+AWSecureStatusMode  = {
+  :sunxi_normal_mode                   => 0x0,
+  :sunxi_secure_mode_with_secureos     => 0x1,
+  :sunxi_secure_mode_no_secureos       => 0x2,
+  :sunxi_secure_mode                   => 0x3,
+  :sunxi_secure_mode_unknown           => -1  # added by me
 }
 
 # U-boot mode (uboot_spare_head.boot_data.work_mode,0xE0 offset)
@@ -158,9 +166,9 @@ AWUSBStatus = {
 FESIndex = {
   :dram                            => 0x0,
   :physical                        => 0x1,
+  :nand                            => 0x2,
   :log                             => 0x2,
 # these below are usable on boot 1.0
-  :nand                            => 0x2,
   :card                            => 0x3,
   :spinor                          => 0x3,
   :nand2                           => 0x20 # encrypted data write?

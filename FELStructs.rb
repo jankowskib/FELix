@@ -331,7 +331,13 @@ class AWSunxiPartition < BinData::Record
   uint32 :user_type, :initial_value => 0x8000
   uint32 :keydata, :initial_value => 0
   uint32 :ro, :initial_value => 0
-  array  :reserved, :type => :uint8, :initial_length => 68
+  # For A83
+  uint32 :sig_verify
+  uint32 :sig_erase
+  array  :sig_value, :type => :uint32, :initial_length => 4
+  uint32 :sig_pubkey;
+  uint32 :sig_pbumode;
+  array  :reserved, :type => :uint8, :initial_length => 36
 end
 
 # Size 64
@@ -355,7 +361,9 @@ class AWSunxiMBR < BinData::Record
   uint32le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
   uint32le :stamp, :initial_value => 0
   array    :part, :type => :aw_sunxi_partition, :initial_length => 120
-  array    :reserved, :type => :uint8, :initial_length => 992
+  # For A83
+  uint32le :lockflag
+  array    :reserved, :type => :uint8, :initial_length => (992 - 4)
 end
 
 #Legacy mbr (softw311), record size: 1024
@@ -383,8 +391,8 @@ class AWMBR < BinData::Record
   #
   # Produces following output
   # --------------------------
-  #   *   bootloader (nanda) @ 0x8000    [16MB]
-  #   *   env        (nandb) @ 0x10000   [16MB]
+  #   *   bootloader (nanda) @ 0x8000    [16MB] [0x00000000]
+  #   *   env        (nandb) @ 0x10000   [16MB] [0x00000000]
   #   *   ...
   def inspect
     self.each_pair do |k, v|
@@ -402,8 +410,8 @@ class AWMBR < BinData::Record
             j.each do |p|
               break if p.name.empty?
               print "%-40s" % p.name.yellow
-              puts "(nand%s) @ 0x%08x [% 5d MB]" % [c,
-                p.address_low, p.lenlo/2048 ]
+              puts "(nand%s) @ 0x%08x [% 5d MB] [0x%08x]" % [c,
+                p.address_low, p.lenlo/2048, p.keydata]
                 c.next!
               end
           else

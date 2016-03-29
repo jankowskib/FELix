@@ -162,8 +162,9 @@ class FELSuit < FELix
     dlinfo.item.each do |item|
       break if item.name.empty?
       sparsed = false
-      # Don't write udisk if format flag isn't set
-      next if item.name == "UDISK" && !format
+      # Don't write udisk
+      # @todo add support for not empty udisk image
+      next if item.name == "UDISK"
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part

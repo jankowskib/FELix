@@ -300,9 +300,14 @@ class FELix
     else
       request.flags |= AWTags[tags]
     end
-
-    answer = transfer(:pull, request, size: 12)
-    AWFESVerifyStatusResponse.read(answer)
+    # Verification finish flag may be not set immediately
+    5.times do
+      answer = transfer(:pull, request, size: 12)
+      resp = AWFESVerifyStatusResponse.read(answer)
+      return resp if resp.flags == 0x6a617603
+      sleep(300)
+    end
+    raise FELError, "The verify process has timed out"
   end
 
   # Verify the checksum of the given memory block
@@ -323,16 +328,56 @@ class FELix
 
   # Attach / detach the storage (handles `:flash_set_on` and `:flash_set_off`)
   # @param how [Symbol] a desired state of the storage (`:on` or `:off`)
+  # @param type [Integer] type of storage. Unused.
   # @raise [FELError, FELFatal]
   # @note Use only in a :fes mode. An MBR must be written before
-  def set_storage_state(how)
+  def set_storage_state(how, type=0)
     raise FELError, "An invalid parameter state (#{how})" unless [:on, :off].
       include? how
-    request = AWFELStandardRequest.new
+    request = AWFELMessage.new
     request.cmd = how == :on ? FESCmd[:flash_set_on] : FESCmd[:flash_set_off]
-
+    request.address = type # the address field is used for storage type
     transfer(:push, request)
   end
+
+  # Get security system status. (handles `:query_secure`)
+  # Secure flag is controlled by `secure_bit` in sys_config.fex
+  # See more: https://github.com/allwinner-zh/bootloader/blob/master/u-boot-2011.09/arch/arm/cpu/armv7/sun8iw7/board.c#L300
+  #
+  # @raise [FELError, FELFatal]
+  # @return [Symbol<AWSecureStatusMode>] a status flag
+  # @note Use only in a :fes mode
+  def query_secure
+    request = AWFELStandardRequest.new
+    request.cmd = FESCmd[:query_secure]
+
+    status = transfer(:pull, request, size: 4).unpack("V")[0]
+
+    if AWSecureStatusMode.has_value? status
+      AWSecureStatusMode.keys[status]
+    else
+      AWSecureStatusMode.keys[-1]
+    end
+  end
+
+  # Get currently default storage. (handles `:query_storage`)
+  #
+  # @raise [FELError, FELFatal]
+  # @return [Symbol<FESIndex>] a status flag or `:unknown`
+  # @note Use only in a :fes mode
+  def query_storage
+    request = AWFELStandardRequest.new
+    request.cmd = FESCmd[:query_storage]
+
+    status = transfer(:pull, request, size: 4).unpack("V")[0]
+
+    if FESIndex.has_value? status
+      FESIndex.keys[status]
+    else
+      :unknown
+    end
+  end
+
 
   # Send a FES_TRANSMITE request
   # Can be used to read/write memory in FES mode
