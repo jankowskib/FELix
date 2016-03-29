@@ -672,6 +672,7 @@ begin
   when :write
     header = File.read($options[:file], 64) # read first 64 bytes
     file_size = 0
+    sparsed = false
     if SparseImage.is_valid?(header)
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
@@ -708,7 +709,8 @@ begin
     end
     print ("* Reading a file (#{file_size} bytes)")
     curr_add = $options[:address]
-    if SparseImage.is_valid?(header)
+    sparsed = SparseImage.is_valid?(header)
+    if sparsed
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
         queue = Queue.new
@@ -787,8 +789,8 @@ begin
       threads.each {|t| t.join}
     end
     puts "[OK]".green unless $options[:verbose]
-    unless ([:uboot, :boot0] & $options[:tags]).empty?
-      print ("\r* Veryfing...").ljust(57) << "\t" unless $options[:verbose]
+    unless sparsed
+      print ("\r* Verifying").ljust(57) << "\t" unless $options[:verbose]
       resp = fel.verify_status($options[:tags])
       raise FELFatal, "Verification failed" if resp.crc != 0
       puts "[OK]".green unless $options[:verbose]
