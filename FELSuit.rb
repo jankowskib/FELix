@@ -46,11 +46,11 @@ class FELSuit < FELix
     start = get_image_data(@structure.item_by_file("magic_#{prefix}_start.fex"))
     finish = get_image_data(@structure.item_by_file("magic_#{prefix}_end.fex"))
 
-    transmite(:write, :address => 0x40330000, :memory => start)
-    transmite(:write, :address => address, :memory => data, :media_index => index)
-    transmite(:write, :address => 0x40330000, :memory => finish)
+    transmit(:write, :address => 0x40330000, :memory => start)
+    transmit(:write, :address => address, :memory => data, :media_index => index)
+    transmit(:write, :address => 0x40330000, :memory => finish)
   rescue FELError => e
-    raise FELError, "Failed to transmite with magic (#{e})"
+    raise FELError, "Failed to transmit with magic (#{e})"
   end
 
   # Flash legacy image to the device
@@ -107,7 +107,7 @@ class FELSuit < FELix
     end
 
     yield "Sending DRAM config" if block_given?
-    transmite(:write, :address => 0x40900000, :memory => sys_para.to_binary_s)
+    transmit(:write, :address => 0x40900000, :memory => sys_para.to_binary_s)
     yield "Writing FED" if block_given?
     magic_write(:de, get_image_data(@structure.item_by_file("fed_nand.axf")),
       0x40430000)

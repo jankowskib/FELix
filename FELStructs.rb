@@ -94,7 +94,7 @@ end
 
 # Boot 1.0 way to download data
 class AWFESTrasportRequest < BinData::Record # size 16
-  uint16le :cmd, :value => FESCmd[:transmite]
+  uint16le :cmd, :value => FESCmd[:transmit]
   uint16le :tag, :initial_value => 0
   uint32le :address
   uint32le :len

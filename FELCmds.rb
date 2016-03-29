@@ -379,12 +379,12 @@ class FELix
   end
 
 
-  # Send a FES_TRANSMITE request
+  # Send a FES_TRANSMIT request
   # Can be used to read/write memory in FES mode
   #
   # @param direction [Symbol<FESTransmiteFlag>] one of FESTransmiteFlag (`:write` or `:read`)
   # @param opts [Hash] Arguments
-  # @option opts :address [Integer] place in memory to transmite
+  # @option opts :address [Integer] place in memory to transmit
   # @option opts :memory [String] data to write (use only with `:write`)
   # @option opts :media_index [Symbol<FESIndex>] one of index (default `:dram`)
   # @option opts :length [Integer] size of data (use only with `:read`)
@@ -394,7 +394,7 @@ class FELix
   # @yieldparam [Integer] read/written bytes
   # @note Use only in a :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this in boot 2.0
   # @TODO: Replace opts -> named arguments
-  def transmite(direction, *opts)
+  def transmit(direction, *opts)
     opts = opts.first
     opts[:media_index] ||= :dram
     start = 0

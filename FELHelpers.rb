@@ -182,7 +182,7 @@ class FELHelpers
           case p.cmd
           when FELCmd[:verify_device] then puts "FELVerifyDevice"
             .light_blue <<  " (0x#{FELCmd[:verify_device]})"
-          when FESCmd[:transmite]
+          when FESCmd[:transmit]
             p = AWFESTrasportRequest.read(packet)
             print "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue
             print FESTransmiteFlag.key(p.flags).to_s

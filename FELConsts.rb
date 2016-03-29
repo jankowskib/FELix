@@ -60,7 +60,7 @@ FELCmd = {
 
 #FES Messages
 FESCmd = {
-  :transmite                       => 0x201, # [@transmite] read,write depends on flag
+  :transmit                        => 0x201, # [@transmit] read,write depends on flag
   :run                             => 0x202, # [@run]
   :info                            => 0x203, # [@info] get if FES_RUN has finished (32 bytes)
   :get_msg                         => 0x204, # [@get_msg] get result of last FES_RUN (param buffer size)
@@ -129,7 +129,7 @@ AWActions = {
   :boot                             => 0x5
 }
 
-# Flag for FESCmd[:transmite]
+# Flag for FESCmd[:transmit]
 FESTransmiteFlag = {
   :write                           => 0x10, # aka :download
   :read                            => 0x20, # aka :upload
