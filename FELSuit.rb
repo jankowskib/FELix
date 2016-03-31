@@ -346,7 +346,7 @@ class FELSuit < FELix
     write(0x2000, egon)
     run(0x2000)
     write(0x4a000000, uboot)
-    write(0x4a0000e0, AWUBootWorkMode[mode].chr) if mode
+    write(0x4a0000e0, AWUBootWorkMode[mode].chr) unless mode == :boot
     run(0x4a000000)
   end
 
