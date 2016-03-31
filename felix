@@ -683,8 +683,8 @@ begin
   when :write
     header = File.read($options[:file], 64) # read first 64 bytes
     file_size = 0
-    sparsed = false
-    if SparseImage.is_valid?(header)
+    sparsed = SparseImage.is_valid?(header)
+    if sparsed
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
         file_size = sparse.get_final_size
@@ -720,7 +720,6 @@ begin
     end
     print ("* Reading a file (#{file_size} bytes)")
     curr_add = $options[:address]
-    sparsed = SparseImage.is_valid?(header)
     if sparsed
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
