@@ -929,23 +929,24 @@ begin
     FELHelpers.debug_packets($options[:file])
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
-    last_type = :action
+    last_type = nil
     fel.flash($options[:format]) do |s, type, arg|
-      puts "[OK]".ljust(4).green unless $options[:verbose] || type == :percent ||
-        last_type == :info || type == :warn
-      if type == :percent && arg
-        str = ""
-        str << "\r* #{s}".ljust(57) << "\t" unless $options[:verbose]
-        str << "#{arg}%".ljust(4).light_blue if !$options[:verbose] && arg < 100
-        print str
-      elsif type == :info
-        puts "  #{s}" unless $options[:verbose]
-      elsif type == :warn
-        puts "[#{s}]".ljust(4).yellow unless $options[:verbose]
-      else
-        print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
+      unless $options[:verbose]
+        if type == :percent && arg
+          str = ""
+          str << "\r* #{s}".ljust(57) << "\t"
+          str << "#{arg}%".ljust(4).light_blue if arg < 100
+          print str
+        elsif type == :info
+          puts "\n  #{s}"
+        elsif type == :warn
+          puts "[#{s}]".ljust(4).yellow
+        else
+          puts "[OK]".ljust(4).green unless last_type && last_type != :percent
+          print "* #{s}".ljust(57) << "\t"
+        end
+        last_type = type
       end
-      last_type = type
     end
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]

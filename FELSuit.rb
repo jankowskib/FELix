@@ -155,8 +155,8 @@ class FELSuit < FELix
       format = true
     end
     raise FELError, "Cannot flash new partition table" if status.crc != 0
-    # 5. Enable NAND
-    yield "Attaching NAND driver" if block_given?
+    # 5. Enable NAND / SDCARD access
+    yield "Enabling the storage access" if block_given?
     set_storage_state(:on)
     # 6. Write partitions
     dlinfo.item.each do |item|
@@ -308,10 +308,11 @@ class FELSuit < FELix
         end
       end
     end
-    # 7. Disable NAND
-    yield "Detaching NAND driver" if block_given?
+    # 7. Disable storage
+    yield "Disabling the storage access" if block_given?
     set_storage_state(:off)
     # 8. Write u-boot
+    # @todo toc1.fex & toc0.fex should be written if secure flag is set
     yield "Writing u-boot" if block_given?
     write(0, uboot, :uboot, :fes) do |n|
       yield "Writing u-boot", :percent, (n * 100) / uboot.bytesize if block_given?
