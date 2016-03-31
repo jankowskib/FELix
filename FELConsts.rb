@@ -51,7 +51,7 @@ FELCmd = {
   :verify_device                   => 0x1, # [@get_device_status] can be used in FES
   :switch_role                     => 0x2,
   :is_ready                        => 0x3, # Read len 8, can be used in FES
-  :get_cmd_set_ver                 => 0x4, # can be used in FES
+  :get_cmd_set_ver                 => 0x4, # can be used in FES, may be used to check what commands are available (16 bytes)
   :disconnect                      => 0x10,
   :download                        => 0x101, # [@write] write
   :run                             => 0x102, # [@run] execute
@@ -60,7 +60,7 @@ FELCmd = {
 
 #FES Messages
 FESCmd = {
-  :transmit                        => 0x201, # [@transmit] read,write depends on flag
+  :transmit                        => 0x201, # [@transmit] read,write depends on flag, do not use
   :run                             => 0x202, # [@run]
   :info                            => 0x203, # [@info] get if FES_RUN has finished (32 bytes)
   :get_msg                         => 0x204, # [@get_msg] get result of last FES_RUN (param buffer size)
@@ -68,7 +68,7 @@ FESCmd = {
   # Following are available on boot2.0
   :download                        => 0x206, # [@write]
   :upload                          => 0x207, # [@read]
-  :verify                          => 0x208, # check CRC of given memory block
+  :verify                          => 0x208, # check CRC of given memory block, not implemented
   :query_storage                   => 0x209, # [@query_storage] used to check if we boot from nand or sdcard
   :flash_set_on                    => 0x20A, # [@set_storage_state] exec sunxi_sprite_init(0) => no data
   :flash_set_off                   => 0x20B, # [@set_storage_state] exec sunxi_sprite_exit(1) => no data
@@ -115,7 +115,9 @@ AWUBootWorkMode = {
   :usb_product                     => 0x10, # FES mode
   :card_product                    => 0x11, # SD-card flash
   :usb_debug                       => 0x12, # FES mode with debug
+  :sprite_recovery                 => 0x13,
   :usb_update                      => 0x20, # USB upgrade (automatically inits nand!)
+  :erase_key                       => 0x20, # replaced on A83
   :outer_update                    => 0x21  # external disk upgrade
 }
 
@@ -126,7 +128,8 @@ AWActions = {
   :reboot                           => 0x2,
   :shutdown                         => 0x3,
   :reupdate                         => 0x4,
-  :boot                             => 0x5
+  :boot                             => 0x5,
+  :sprite_test                      => 0x6
 }
 
 # Flag for FESCmd[:transmit]
