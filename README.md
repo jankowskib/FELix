@@ -4,7 +4,7 @@ FELix
 FELix is a multiplatform tool for Allwinner processors handling FEL and FES
 protocol written in Ruby
 
-* Uses libusb1.0 / ruby 2.0
+* Uses libusb1.0 / ruby 2.0+
 * More powerful than fel tool from sunxi-tools
 
 Features
@@ -24,7 +24,7 @@ Features
 Installation
 ------------------
 
-1. Install ruby 2.0 (you can use ruby-installer on Windows)
+1. Install ruby 2.0+ (you can use ruby-installer on Windows)
 
         $ sudo apt-get install ruby2.0 ruby2.0-dev
         $ sudo ln -sf /usr/bin/ruby2.0 /usr/bin/ruby
@@ -38,11 +38,12 @@ Installation
 
         $ sudo apt-get install libusb-1.0.0-dev libffi-dev
 
-4. Run bundler in application directory
+4. Run bundler in application directory (You may need to edit Gemfile to match your ruby version)
 
         $ bundle
 
-5. Install usb filter (Windows only) on your USB driver. Use [Zadig](http://zadig.akeo.ie/).
+5. Switch to FEL mode (`adb reboot efex`) and install a usb filter (Windows only)
+over the default USB driver. Use [Zadig](http://zadig.akeo.ie/).
 
 
 Usage
@@ -93,7 +94,7 @@ Issues
 ------------------
 
 As I have limited access to Allwinner devices, I encourage you to report issues
-you encounter in Issues section. As far I tested the tool on A13, A23, A31 and A31s.
+you encounter in Issues section. As far I tested the tool on A13, A23, A31, A31s and A83.
 
 
 Todo
