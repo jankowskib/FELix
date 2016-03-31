@@ -233,7 +233,7 @@ class FELSuit < FELix
                 get_final_size if block_given?
             end
             break if finish
-            curr_add+=data.bytesize / 512
+            curr_add+=data.bytesize / FELIX_SECTOR
           end
           yield "Writing #{item.name}", :percent, 100 if block_given?
         end

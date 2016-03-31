@@ -757,7 +757,8 @@ begin
               print "#{percent}%".ljust(4).light_blue unless percent == 100
             end
             break if finish
-            curr_add+=(data.bytesize / FELIX_SECTOR)
+            next_sector=data.bytesize / FELIX_SECTOR
+            curr_add+=( next_sector ? next_sector : 1) # Write next sector if its less than FELIX_SECTOR
           end
         end
         threads.each {|t| t.join}
@@ -794,7 +795,19 @@ begin
             percent = (written * 100) / file_size
             print "#{percent}%".ljust(4).light_blue unless percent == 100
           end
-          curr_add+=(data.bytesize / FELIX_SECTOR)
+          tags = 0
+          if $options[:tags].kind_of?(Array)
+            $options[:tags].each {|t| tags |= AWTags[t]}
+          else
+            tags |= AWTags[$options[:tags]]
+          end
+
+          if tags & AWTags[:dram] == 0 && $options[:mode] == :fes
+            next_sector=data.bytesize / FELIX_SECTOR
+            curr_add+=( next_sector ? next_sector : 1) # Write next sector if its less than FELIX_SECTOR
+          else
+            curr_add+=data.bytesize
+          end
         end
       end
       threads.each {|t| t.join}
