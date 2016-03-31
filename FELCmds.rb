@@ -361,9 +361,10 @@ class FELix
   end
 
   # Get currently default storage. (handles `:query_storage`)
+  # Used to determine which boot0 should be written
   #
   # @raise [FELError, FELFatal]
-  # @return [Symbol<FESIndex>] a status flag or `:unknown`
+  # @return [Symbol<AWStorageType>] a status flag or `:unknown`
   # @note Use only in a :fes mode
   def query_storage
     request = AWFELStandardRequest.new
@@ -371,8 +372,8 @@ class FELix
 
     status = transfer(:pull, request, size: 4).unpack("V")[0]
 
-    if FESIndex.has_value? status
-      FESIndex.keys[status]
+    if AWStorageType.has_value? status
+      AWStorageType.keys[status]
     else
       :unknown
     end

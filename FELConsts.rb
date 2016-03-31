@@ -174,6 +174,15 @@ FESIndex = {
   :nand2                           => 0x20 # encrypted data write?
 }
 
+# Result of FES_QUERY_STORAGE
+AWStorageType = {
+    :nand                            => 0x0,
+    :card                            => 0x1,
+    :card2                           => 0x2,
+    :spinor                          => 0x3,
+    :unknown                         => -1 # added by me
+}
+
 #Livesuit image attributes
 AWImageAttr = {
   :res                            => 0x800,

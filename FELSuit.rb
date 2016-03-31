@@ -320,7 +320,20 @@ class FELSuit < FELix
     resp = verify_status(:uboot)
     raise FELFatal, "Failed to update u-boot" if resp.crc != 0
     # 9. Write boot0
-    boot0 = get_image_data(@structure.item_by_file("boot0_nand.fex"))
+    yield "Checking the storage type" if block_given?
+    storage = query_storage
+    boot0_file = String.new
+    case storage
+    when :nand
+      boot0_file = "boot0_nand.fex"
+    when :card, :card2
+      boot0_file = "boot0_sdcard.fex"
+    when :spinor
+      boot0_file = "boot0_spinor.fex"
+    else
+      raise FELFatal, "Unknown storage type (#{storage})"
+    end
+    boot0 = get_image_data(@structure.item_by_file(boot0_file))
     yield "Writing boot0" if block_given?
     write(0, boot0, :boot0, :fes) do |n|
       yield "Writing boot0", :percent, (n * 100) / boot0.bytesize if block_given?

@@ -610,7 +610,7 @@ begin
     print "* Checking storage flag".ljust(57) << "\t" unless $options[:verbose]
     status = fel.query_storage
     puts "[OK]".green unless $options[:verbose]
-    puts "* Used storage is: %s" % status.to_s.yellow
+    puts "* Used storage is: %s (%d)" % [status.to_s.yellow, AWStorageType[status]]
   when :mbr
     print ("* Writing new paratition table" << ($options[:format] ? " and formatting storage" :
       "")).ljust(57) << "\t" unless $options[:verbose]
