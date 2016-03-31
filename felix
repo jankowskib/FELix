@@ -938,7 +938,7 @@ begin
           str << "#{arg}%".ljust(4).light_blue if arg < 100
           print str
         elsif type == :info
-          puts "\n  #{s}"
+          puts "\n  #{s}".white
         elsif type == :warn
           puts "[#{s}]".ljust(4).yellow
         else
