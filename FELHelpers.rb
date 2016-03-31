@@ -150,7 +150,7 @@ class FELHelpers
         dir = (p.cmd == FESCmd[:download] ? :write : :read)
         print "FES#{FESCmd.key(p.cmd).camelize}".
         light_blue if FESCmd.has_value?(p.cmd)
-        puts "\tTag: #{tags_to_s(p.tag)} (0x%04x), addr (0x%x)" % [p.tag, p.address]
+        puts "\tTag: #{tags_to_s(p.flags)} (0x%04x), addr (0x%x)" % [p.flags, p.address]
         puts "\t(Prepare for #{dir} of #{p.len} bytes)" if p.len > 0
       elsif packet[0..7] == "AWUSBFEX"
         p = AWFELVerifyDeviceResponse.read(packet)

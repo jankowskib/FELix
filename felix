@@ -34,20 +34,31 @@ require_relative 'FELHelpers'
 require_relative 'FELSuit'
 require_relative 'libsparse'
 
-# @example Routines (Send command and read data)
+# @example Routines V1 (should be working on every device)
 #  1. Write (--> send | <-- recv)
 #     --> AWUSBRequest(AW_USB_WRITE, len)
-#     --> WRITE(len)
+#     --> WRITE(cmd, len)
 #     <-- READ(13) -> AWUSBResponse
 #  (then)
-#  2. Read
-#     --> AWUSBRequest(AW_USB_READ, len)
-#     <-- READ(len)
-#     <-- READ(13) -> AWUSBResponse
+#  2. Read a response or write the data
+#     --> AWUSBRequest(AW_USB_READ, len)  | --> AWUSBRequest(AW_USB_WRITE, len)
+#     <-- READ(len)                       | --> WRITE(data, len)
+#     <-- READ(13) -> AWUSBResponse       | <-- READ(13) -> AWUSBResponse
 #  (then)
-#  3. Read status
+#  3. Read a status
 #     --> AWUSBRequest(AW_USB_READ, 8)
-#     <-- READ(8)
+#     <-- READ(8)  -> AWFELStatusResponse
+#     <-- READ(13) -> AWUSBResponse
+#
+# @example Routines V2 (appeared on A83, now you can use AWUSBRequestV2 for all commands)
+# => Write (--> send | <-- recv)
+#     --> AWUSBRequestV2(cmd, address, len, flags)
+#     --> WRITE(data, len)
+#     <-- READ(13) -> AWUSBResponse
+#  (or)
+# => Read
+#     --> AWUSBRequestV2(cmd, address, len, flags)
+#     <-- READ(len)
 #     <-- READ(13) -> AWUSBResponse
 #
 # @example Some important info about memory layout. Treat ranges as [a..b-1]

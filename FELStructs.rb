@@ -59,10 +59,10 @@ end
 #       01 00
 #0010   41 57 55 43                                      AWUC
 class AWUSBRequestV2 < BinData::Record # size 20, used on A83T
-  uint32le :cmd,       :initial_value => FESCmd[:download]
+  uint32le :cmd,       :initial_value => FELCmd[:verify_device]
   uint32le :address,   :initial_value => 0
   uint32le :len,       :initial_value => 0
-  uint32le :tag,       :initial_value => 0
+  uint32le :flags,     :initial_value => AWTags[:none] # one or more of FEX_TAGS
   string   :magic,     :length => 4, :initial_value => "AWUC"
 end
 
