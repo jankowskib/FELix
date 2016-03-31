@@ -20,21 +20,26 @@ class FELix
 
   # Send a request
   # @param data the binary data
+  # @param method [Symbol] a method of transfer (`:v1` or `:v2`)
   # @raise [FELError, FELFatal]
-  def send_request(data)
+  def send_request(data, method = :v1)
   # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
-    request = AWUSBRequest.new
-    request.len = data.bytesize
-    FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
-    @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
-     @usb_out, :timeout=>(5 * 1000))
+    if method == :v1
+      request = AWUSBRequest.new
+      request.len = data.bytesize
+      FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
+      @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
+       @usb_out, :timeout=>(5 * 1000))
+   end
   # 2. Send a proper data
     FELHelpers.debug_packet(data, :write) if $options[:verbose]
     @handle.bulk_transfer(:dataOut => data, :endpoint => @usb_out, :timeout=>(5 * 1000))
   # 3. Get AWUSBResponse
-  # Some request takes a lot of time (i.e. NAND format). Try to wait 60 seconds for response.
-    r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in, :timeout=>(60 * 1000))
-    FELHelpers.debug_packet(r3, :read) if $options[:verbose]
+    if method == :v1
+    # Some request takes a lot of time (i.e. NAND format). Try to wait 60 seconds for response.
+      r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in, :timeout=>(60 * 1000))
+      FELHelpers.debug_packet(r3, :read) if $options[:verbose]
+    end
   rescue LIBUSB::ERROR_INTERRUPTED, LIBUSB::ERROR_TIMEOUT
     raise FELError, "Transfer cancelled"
   rescue => e
@@ -44,21 +49,26 @@ class FELix
 
   # Read data
   # @param len an expected length of the data
+  # @param method [Symbol] a method of transfer (`:v1` or `:v2`)
   # @return [String] the binary data
   # @raise [FELError, FELFatal]
-  def recv_request(len)
+  def recv_request(len, method = :v1)
   # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
-    request = AWUSBRequest.new
-    request.len = len
-    request.cmd = USBCmd[:read]
-    FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
-    @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => @usb_out)
+    if method == :v1
+      request = AWUSBRequest.new
+      request.len = len
+      request.cmd = USBCmd[:read]
+      FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
+      @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => @usb_out)
+    end
   # 2. Read data of length we specified in request
     recv_data = @handle.bulk_transfer(:dataIn => len, :endpoint => @usb_in)
     FELHelpers.debug_packet(recv_data, :read) if $options[:verbose]
   # 3. Get AWUSBResponse
-    response = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
-    FELHelpers.debug_packet(response, :read) if $options[:verbose]
+    if method == :v1
+      response = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
+      FELHelpers.debug_packet(response, :read) if $options[:verbose]
+    end
     recv_data
   rescue LIBUSB::ERROR_INTERRUPTED, LIBUSB::ERROR_TIMEOUT
     raise FELError, "Transfer cancelled"
@@ -73,16 +83,19 @@ class FELix
   # @param request [AWFELMessage, AWFELStandardRequest] a request
   # @param size [Integer] an expected size of an answer (for `:pull`)
   # @param data [String] the binary data (for `:push`)
+  # @param method [Symbol] a method of transfer (`:v1` or `:v2`)
   # @return [String, nil] the received answer (for `:pull`)
   # @raise [FELError, FELFatal]
-  def transfer(direction, request, size:nil, data:nil)
+  def transfer(direction, request, size:nil, data:nil, method: :v1)
     raise FELFatal, "\nAn invalid argument for :pull" if data && direction == :pull
     raise FELFatal, "\nAn invalid argument for :push" if size && direction == :push
     raise FELFatal, "\nAn invalid direction: #{direction}" unless [:pull, :push].
       include? direction
+    raise FELFatal, "\nAn invalid transfer method #{method}" unless [:v1, :v2].
+      include? method
 
     begin
-      send_request(request.to_binary_s)
+      send_request(request.to_binary_s, method)
     rescue FELError
       retry
     rescue FELFatal => e
@@ -94,15 +107,15 @@ class FELix
     case direction
     when :pull
       begin
-        answer = recv_request(size)
-        raise FELFatal, "An unexpected answer length ( #{answer.length} <>" <<
+        answer = recv_request(size, method)
+        raise FELFatal, "\nAn unexpected answer length (#{answer.length} <>" <<
           " #{size})" if answer.length!= size
       rescue FELFatal => e
         raise FELFatal, "\nFailed to get the data (#{e})"
       end if size > 0
     when :push
         begin
-          send_request(data)
+          send_request(data, method)
         rescue FELError
           retry
         rescue FELFatal => e
@@ -111,10 +124,18 @@ class FELix
     end
 
     begin
-      data = recv_request(8)
-      status = AWFELStatusResponse.read(data)
-      raise FELError, "\nCommand execution failed (Status #{status.state})" if
-        status.state > 0
+      case method
+      when :v1
+        data = recv_request(8, method)
+        status = AWFELStatusResponse.read(data)
+        raise FELError, "\nCommand execution failed (Status #{status.state})" if
+          status.state > 0
+      when :v2
+        data = recv_request(13, method)
+        status = AWUSBResponse.read(data)
+        raise FELError, "\nCommand execution failed (Status #{status.csw_status})" if
+          status.csw_status != 0
+      end
     rescue BinData::ValidityError => e
       raise FELFatal, "\nAn unexpected device response: #{e}"
     rescue FELFatal => e
@@ -129,6 +150,7 @@ class FELix
   # @raise [FELError, FELFatal]
   def get_device_status
     answer = transfer(:pull, AWFELStandardRequest.new, size: 32)
+    #answer = transfer(:pull, AWUSBRequestV2.new, size: 32, method: :v2)
     AWFELVerifyDeviceResponse.read(answer)
   end
 
@@ -185,15 +207,17 @@ class FELix
   # @param tags [Symbol, Array<AWTags>] an operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] an operation mode `:fel` or `:fes`
   # @param dontfinish do not set finish tag in `:fes` context
+  # @param method [Symbol] communication method (`:v1` or `:v2`)
   # @raise [FELError, FELFatal]
   # @yieldparam [Integer] bytes written as far
   # @note Not usable on the legacy fes (boot1.0)
-  def write(address, memory, tags=[:none], mode=:fel, dontfinish=false)
+  def write(address, memory, tags=[:none], mode=:fel, dontfinish=false, method: :v1)
     raise FELError, "The memory is not specifed" unless memory
     raise FELError, "The address is not specifed" unless address
+
     total_len = memory.bytesize
     start = 0
-    request = AWFELMessage.new
+    request = method == :v1 ? AWFELMessage.new : AWUSBRequestV2.new
     request.cmd = mode == :fel ? FELCmd[:download] : FESCmd[:download]
     request.address = address.to_i
     if tags.kind_of?(Array)
@@ -212,7 +236,7 @@ class FELix
       request.flags |= AWTags[:finish] if mode == :fes &&
         total_len <= FELIX_MAX_CHUNK && dontfinish == false
 
-      transfer(:push, request, data: memory.byteslice(start, request.len))
+      transfer(:push, request, data: memory.byteslice(start, request.len), method: method)
 
       start+=request.len
       total_len-=request.len
@@ -232,10 +256,11 @@ class FELix
   # @param mode [AWDeviceMode] an operation mode `:fel` or `:fes`
   # @param flags [Array<AWRunContext>] zero or more flags (in `:fes` only)
   # @param args [Array<Integer>] an array of arguments if `:has_param` flag is set
+  # @param method [Symbol] communication method (`:v1` or `:v2`)
   # @note `flags` is `max_para` in boot2.0
   # @raise [FELError, FELFatal]
-  def run(address, mode=:fel, flags = :none, args = nil)
-    request = AWFELMessage.new
+  def run(address, mode=:fel, flags = :none, args = nil, method: :v1)
+    request = method == :v1 ? AWFELMessage.new : AWUSBRequestV2.new
     request.cmd = mode == :fel ? FELCmd[:run] : FESCmd[:run]
     request.address = address
 
