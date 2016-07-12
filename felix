@@ -384,6 +384,33 @@ begin
         end
         exit FELIX_SUCCESS
       end
+      opts.on("--decompress-sparse path", String, "Decompress a sparse image (output to STDOUT!)") do |f|
+        begin
+          header = File.read(f, 64) # read first 64 bytes
+          raise SparseError, "Not a sparse file" unless SparseImage.is_valid?(header)
+            File.open(f, "rb") do |file|
+              sparse = SparseImage.new(file)
+              STDERR.puts "File: #{f}"
+              STDERR.puts "Uncompressed size: #{sparse.get_final_size} (#{sparse.
+                get_final_size >> 20} MB)"
+              STDERR.print "Decompressing..."
+              i = 1
+              sparse.each_chunk do |ch|
+                print ch
+                STDERR.print "\rDecompressing...%d/%d" % [i, sparse.count_chunks]
+                i+= 1
+              end
+              STDERR.puts "\nDone"
+            end
+        rescue SparseError => e
+          STDERR.puts "Invalid image: ".red << "#{e}"
+          exit FELIX_FAIL
+        rescue Errno::ENOENT
+          STDERR.puts "File not found!"
+          exit FELIX_FAIL
+        end
+        exit FELIX_SUCCESS
+      end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
           dl = File.read(f)
