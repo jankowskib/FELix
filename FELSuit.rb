@@ -120,10 +120,11 @@ class FELSuit < FELix
   # @raise [FELError, FELFatal] if failed
   # @param format [TrueClass, FalseClass] force storage format
   # @param verify [TrueClass, FalseClass] verify written data
+  # @param method [Symbol] protocol version (`:v1` or `:v2`)
   # @yieldparam [String] status
   # @yieldparam [Symbol] message type (:info, :percent, :action)
   # @yieldparam [Integer] message argument
-  def flash(format = false, verify = true)
+  def flash(format = false, verify = true, method = :v1)
     return flash_legacy(format) {|i| yield i} if legacy?
     # 1. Let's check device mode
     info = get_device_status
@@ -227,7 +228,7 @@ class FELSuit < FELix
             finish = (chunk_num == sparse.count_chunks - 1) || sparse.chunks[
               chunk_num + 1].chunk_type == ChunkType[:dont_care] && (chunk_num ==
               sparse.count_chunks - 2)
-            write(curr_add, data, :none, :fes, !finish) do |ch|
+            write(curr_add, data, :none, :fes, !finish, method: method) do |ch|
               yield ("Writing #{item.name} @ 0x%08x" % (curr_add + (ch / 512))),
                 :percent, ((written - data.bytesize + ch) * 100) / sparse.
                 get_final_size if block_given?
@@ -280,7 +281,7 @@ class FELSuit < FELix
             data = queue.pop
             written+=data.bytesize
             len-=data.bytesize
-            write(curr_add, data, :none, :fes, written < data_size) do
+            write(curr_add, data, :none, :fes, written < data_size, method: method) do
               yield "Writing #{item.name}", :percent, (written * 100) / data_size if block_given?
             end
             curr_add+=(data.bytesize / FELIX_SECTOR)
@@ -314,7 +315,7 @@ class FELSuit < FELix
     # 8. Write u-boot
     # @todo toc1.fex & toc0.fex should be written if secure flag is set
     yield "Writing u-boot" if block_given?
-    write(0, uboot, :uboot, :fes) do |n|
+    write(0, uboot, :uboot, :fes, method: method) do |n|
       yield "Writing u-boot", :percent, (n * 100) / uboot.bytesize if block_given?
     end
     yield "Veryfing u-boot" if block_given?
@@ -336,7 +337,7 @@ class FELSuit < FELix
     end
     boot0 = get_image_data(@structure.item_by_file(boot0_file))
     yield "Writing boot0" if block_given?
-    write(0, boot0, :boot0, :fes) do |n|
+    write(0, boot0, :boot0, :fes, method: method) do |n|
       yield "Writing boot0", :percent, (n * 100) / boot0.bytesize if block_given?
     end
     yield "Veryfing boot0" if block_given?
@@ -353,7 +354,7 @@ class FELSuit < FELix
   # @param uboot [String] U-boot binary data (u-boot.fex)
   # @param mode [Symbol<AWUBootWorkMode>] desired work mode
   # @todo Verify header (eGON.BT0, uboot)
-  # @raise [String] error name
+  # @raise [FELError]
   def boot_to_fes(egon, uboot, mode = :usb_product)
     raise FELError, "Unknown work mode (#{mode.to_s})" unless AWUBootWorkMode[mode]
     raise FELError, "eGON is too big (#{egon.bytesize}>16384)" if egon.bytesize>16384
@@ -370,7 +371,7 @@ class FELSuit < FELix
   # @param fes2 [String] fes.fex binary
   # @param fes2_next [String] fes_2.fex binary
   # @param dram_cfg [AWSystemParameters] DRAM params (recreated from sys_config if empty)
-  # @raise [String] error name if happens
+  # @raise [FELError]
   # @note Only for legacy images
   def boot_to_fes_legacy(fes, fes_next, fes2, fes2_next, dram_cfg = nil)
     raise FELError, "FES1-1 is too big (#{fes.bytesize}>2784)" if fes.
