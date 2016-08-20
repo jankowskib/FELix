@@ -269,7 +269,7 @@ class FELix
       raise FELFatal, "Unexcepted argument type: #{device.inspect}" unless device.
       kind_of?(LIBUSB::Device)
       @handle = device.open
-      @handle.detach_kernel_driver(0) if RUBY_PLATFORM=~/linux/i && device.kernel_driver_active?(0)
+      @handle.detach_kernel_driver(0) if RUBY_PLATFORM=~/linux/i && @handle.kernel_driver_active?(0)
       @handle.claim_interface(0)
       @usb_out = device.endpoints.select { |e| e.direction == :out }[0]
       @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
@@ -291,7 +291,7 @@ class FELix
       @handle.close if @handle
       # Open new one
       @handle = device[0].open
-      @handle.detach_kernel_driver(0) if RUBY_PLATFORM=~/linux/i && dev.kernel_driver_active?(0)
+      @handle.detach_kernel_driver(0) if RUBY_PLATFORM=~/linux/i && @handle.kernel_driver_active?(0)
       @handle.claim_interface(0)
       @usb_out = device[0].endpoints.select { |e| e.direction == :out }[0]
       @usb_in = device[0].endpoints.select { |e| e.direction == :in }[0]
