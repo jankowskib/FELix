@@ -40,7 +40,7 @@ class BinData::Record
 end
 
 class AWUSBRequest < BinData::Record # size 32
-  string   :magic,     :length => 4, :initial_value => "AWUC"
+  string   :magic,     :read_length => 4, :initial_value => "AWUC"
   uint32le :tag,       :initial_value => 0
   uint32le :len,       :initial_value => 16
   uint16le :reserved1, :initial_value => 0
@@ -63,11 +63,11 @@ class AWUSBRequestV2 < BinData::Record # size 20, used on A83T
   uint32le :address,   :initial_value => 0
   uint32le :len,       :initial_value => 0
   uint32le :flags,     :initial_value => AWTags[:none] # one or more of FEX_TAGS
-  string   :magic,     :length => 4, :initial_value => "AWUC"
+  string   :magic,     :read_length => 4, :initial_value => "AWUC"
 end
 
 class AWUSBResponse < BinData::Record # size 13
-  string   :magic, :length => 4, :initial_value => "AWUS"
+  string   :magic, :read_length => 4, :initial_value => "AWUS"
   uint32le :tag
   uint32le :residue
   uint8    :csw_status                # != 0, then fail
@@ -111,7 +111,7 @@ class AWFELStatusResponse < BinData::Record # size 8
 end
 
 class AWFELVerifyDeviceResponse < BinData::Record # size 32
-  string   :magic, :length => 8, :initial_value => "AWUSBFEX"
+  string   :magic, :read_length => 8, :initial_value => "AWUSBFEX"
   uint32le :board
   uint32le :fw
   uint16le :mode
@@ -155,7 +155,7 @@ class AWFESInfoResponse < BinData::Record # size 32
 end
 
 class AWDRAMData < BinData::Record # size 136?
-  string   :magic, :length => 4, :initial_value => "DRAM"
+  string   :magic, :read_length => 4, :initial_value => "DRAM"
   uint32le :unk
   uint32le :dram_clk
   uint32le :dram_type
@@ -279,8 +279,8 @@ class AWSysParaPart < BinData::Record
   endian :little
   uint32 :address_high, :initial_value => 0
   uint32 :address_low
-  string :classname, :length => 32, :trim_padding => true, :initial_value => "DISK"
-  string :name, :length => 32, :trim_padding => true
+  string :classname, :read_length => 32, :trim_padding => true, :initial_value => "DISK"
+  string :name, :read_length => 32, :trim_padding => true
   uint32 :user_type
   uint32 :ro
   array  :reserved, :type => :uint8, :initial_length => 24
@@ -289,15 +289,15 @@ end
 # size 97 bytes
 class AWSysParaItem < BinData::Record
   endian :little
-  string :name, :length => 32, :trim_padding => true
-  string :filename, :length => 32, :trim_padding => true
-  string :verify_filename, :length => 32, :trim_padding => true # checksum of the item
+  string :name, :read_length => 32, :trim_padding => true
+  string :filename, :read_length => 32, :trim_padding => true
+  string :verify_filename, :read_length => 32, :trim_padding => true # checksum of the item
   uint8  :encrypt, :initial_value => lambda { name.empty? ? 1 : 0 } # 1 if item is unused
 end
 
 # size 5496, send in FES mode (boot1.0 only) as param to FED
 class AWSysPara < BinData::Record
-  string   :magic, :length => 8, :initial_value => "SYS_PARA" # 0x00
+  string   :magic, :read_length => 8, :initial_value => "SYS_PARA" # 0x00
   uint32le :unk1, :initial_value => 256                       # 0x08
   uint32le :eraseflag, :initial_value => 1                    # 0x0C
   uint32le :jtag, :initial_value => 1                         # 0x10 [not sure]
@@ -347,8 +347,8 @@ class AWSunxiLegacyPartition < BinData::Record
   uint32 :address_low
   uint32 :lenhi, :initial_value => 0
   uint32 :lenlo
-  string :classname, :length => 12, :trim_padding => true, :initial_value => "DISK"
-  string :name, :length => 12, :trim_padding => true
+  string :classname, :read_length => 12, :trim_padding => true, :initial_value => "DISK"
+  string :name, :read_length => 12, :trim_padding => true
   uint32 :user_type, :initial_value => 0x8000
   uint32 :ro, :initial_value => 0
   array  :reserved, :type => :uint8, :initial_length => 16
@@ -380,9 +380,9 @@ class AWMBR < BinData::Record
   uint32le  :crc, :value => lambda { Crc32.calculate(version.to_binary_s <<
                             magic << mbr.to_binary_s, 12+mbr.num_bytes,0) }
   uint32le  :version, :initial_value => 0x200
-  string    :magic, :length => 8, :initial_value => "softw411",
+  string    :magic, :read_length => 8, :initial_value => "softw411",
                     :assert => lambda { ["softw311", "softw411"].include? magic }
-  choice :mbr, :selection => :magic do
+  choice :mbr, :selection => lambda { magic.to_s } do
     aw_sunxi_mbr "softw411"
     aw_sunxi_legacy_mbr "softw311"
   end
@@ -436,13 +436,13 @@ end
 # Item structure nested in AWDownloadInfo (72 bytes)
 class AWDownloadItem < BinData::Record
   endian :little
-  string :name, :length => 16, :trim_padding => true
+  string :name, :read_length => 16, :trim_padding => true
   uint32 :address_high, :initial_value => 0
   uint32 :address_low
   uint32 :lenhi, :initial_value => 0
   uint32 :lenlo
-  string :filename, :length => 16, :trim_padding => true
-  string :verify_filename, :length => 16, :trim_padding => true # checksum of the item
+  string :filename, :read_length => 16, :trim_padding => true
+  string :verify_filename, :read_length => 16, :trim_padding => true # checksum of the item
   uint32 :encrypt, :initial_value => 0
   uint32 :verify, :initial_value => 0
 end
@@ -450,15 +450,15 @@ end
 # Legacy item structure nested in AWDownloadInfo (88 bytes)
 class AWLegacyDownloadItem < BinData::Record
   endian :little
-  string :classname, :length => 12, :trim_padding => true, :initial_value => "DISK"
-  string :name, :length => 12, :trim_padding => true
+  string :classname, :read_length => 12, :trim_padding => true, :initial_value => "DISK"
+  string :name, :read_length => 12, :trim_padding => true
   uint32 :address_high, :initial_value => 0
   uint32 :address_low
   uint32 :lenhi, :initial_value => 0
   uint32 :lenlo
-  string :part, :length => 12, :trim_padding => true
-  string :filename, :length => 16, :trim_padding => true
-  string :verify_filename, :length => 16, :trim_padding => true # checksum of the item
+  string :part, :read_length => 12, :trim_padding => true
+  string :filename, :read_length => 16, :trim_padding => true
+  string :verify_filename, :read_length => 16, :trim_padding => true # checksum of the item
   uint32 :encrypt, :initial_value => 0
 end
 
@@ -472,16 +472,16 @@ class AWDownloadInfo < BinData::Record
               Crc32.calculate(feed, self.num_bytes-4, 0)
             }
   uint32le  :version, :initial_value => 0x200
-  string    :magic, :length => 8, :initial_value => "softw411",
+  string    :magic, :read_length => 8, :initial_value => "softw411",
             :assert => lambda { ["softw311", "softw411"].include? magic }
   uint32le  :item_count, :value => lambda { item.select { |p| not p.name.empty? }.count }
   array     :stamp, :type => :uint32le, :initial_length => 3, :onlyif =>
             lambda { magic == "softw411" }
-  choice :item, :selection => :magic do
+  choice :item, :selection => lambda { magic.to_s } do
     array "softw411", :type => :aw_download_item, :initial_length => 120
     array "softw311", :type => :aw_legacy_download_item, :initial_length => 15
   end
-  string    :reserved, :length => 7712, :onlyif => lambda { magic == "softw411"},
+  string    :reserved, :read_length => 7712, :onlyif => lambda { magic == "softw411"},
             :trim_padding => true
 
   # Decode dl_info.fex
@@ -512,15 +512,15 @@ class AWImageItemV1 < BinData::Record
   endian  :little
   uint32  :version, :asserted_value => 0x100
   uint32  :item_size
-  string  :main_type, :length => 8, :initial_value => "COMMON", :pad_byte => ' '
-  string  :sub_type, :length => 16, :pad_byte => '0'
+  string  :main_type, :read_length => 8, :initial_value => "COMMON", :pad_byte => ' '
+  string  :sub_type, :read_length => 16, :pad_byte => '0'
   uint32  :attributes
   uint32  :data_len_low
   uint32  :file_len_low
   uint32  :off_len_low
   uint32  :unk
-  string  :path, :length => 256, :trim_padding => true
-  string  :reserved, :length => 716, :trim_padding => true
+  string  :path, :read_length => 256, :trim_padding => true
+  string  :reserved, :read_length => 716, :trim_padding => true
   hide    :reserved
 
   # Useful to see item data
@@ -535,10 +535,10 @@ class AWImageItemV3 < BinData::Record
   endian  :little
   uint32  :version, :asserted_value => 0x100
   uint32  :item_size
-  string  :main_type, :length => 8, :initial_value => "COMMON", :pad_byte => ' '
-  string  :sub_type, :length => 16, :pad_byte => '0'
+  string  :main_type, :read_length => 8, :initial_value => "COMMON", :pad_byte => ' '
+  string  :sub_type, :read_length => 16, :pad_byte => '0'
   uint32  :attributes
-  string  :path, :length => 256, :trim_padding => true
+  string  :path, :read_length => 256, :trim_padding => true
   uint32  :data_len_low
   uint32  :data_len_hi
   uint32  :file_len_low
@@ -547,7 +547,7 @@ class AWImageItemV3 < BinData::Record
   uint32  :off_len_hi
   array   :encrypt_id, :type => :uint8, :initial_length => 64, :value => 0
   uint32  :crc
-  string  :reserved, :length => 640, :trim_padding => true
+  string  :reserved, :read_length => 640, :trim_padding => true
   hide    :reserved
 
   # Useful to see item data
@@ -578,7 +578,7 @@ class AWImageHeaderV1 < BinData::Record
   uint32  :append_size      # additional data length
   uint32  :append_offset_lo
   uint32  :append_offset_hi
-  string  :reserved, :length => 944, :trim_padding => true # need to confirm that
+  string  :reserved, :read_length => 944, :trim_padding => true # need to confirm that
   hide    :reserved
 end
 
@@ -606,14 +606,14 @@ class AWImageHeaderV3 < BinData::Record
   uint32  :unk1
   uint32  :unk2
   uint32  :unk3
-  string  :reserved, :length => 928, :trim_padding => true
+  string  :reserved, :read_length => 928, :trim_padding => true
   hide    :reserved
 end
 
 # Unified Livesuit image structure
 class AWImage < BinData::Record
   endian :little
-  string  :magic, :length => 8, :asserted_value => FELIX_IMG_HEADER
+  string  :magic, :read_length => 8, :asserted_value => FELIX_IMG_HEADER
   uint32  :image_format, :initial_value => 0x300
   choice  :header, :selection => :image_format do
     aw_image_header_v1 0x100
@@ -671,7 +671,7 @@ end
 class BootHeader < BinData::Record
     endian  :little
     uint32  :jump_instruction              # one intruction jumping to real code
-    string  :magic, :length => 8, :trim_padding => true,
+    string  :magic, :read_length => 8, :trim_padding => true,
               :assert => lambda { ["eGON.BT0", "eGON.BT1", "uboot"].include? magic }
     uint32  :check_sum
     uint32  :align_size                   # 0x4000
