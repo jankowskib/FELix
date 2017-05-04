@@ -34,20 +34,31 @@ require_relative 'FELHelpers'
 require_relative 'FELSuit'
 require_relative 'libsparse'
 
-# @example Routines (Send command and read data)
+# @example Routines V1 (should be working on every device)
 #  1. Write (--> send | <-- recv)
 #     --> AWUSBRequest(AW_USB_WRITE, len)
-#     --> WRITE(len)
+#     --> WRITE(cmd, len)
 #     <-- READ(13) -> AWUSBResponse
 #  (then)
-#  2. Read
-#     --> AWUSBRequest(AW_USB_READ, len)
-#     <-- READ(len)
-#     <-- READ(13) -> AWUSBResponse
+#  2. Read a response or write the data
+#     --> AWUSBRequest(AW_USB_READ, len)  | --> AWUSBRequest(AW_USB_WRITE, len)
+#     <-- READ(len)                       | --> WRITE(data, len)
+#     <-- READ(13) -> AWUSBResponse       | <-- READ(13) -> AWUSBResponse
 #  (then)
-#  3. Read status
+#  3. Read a status
 #     --> AWUSBRequest(AW_USB_READ, 8)
-#     <-- READ(8)
+#     <-- READ(8)  -> AWFELStatusResponse
+#     <-- READ(13) -> AWUSBResponse
+#
+# @example Routines V2 (appeared on A83, now you can use AWUSBRequestV2 for all commands)
+# => Write (--> send | <-- recv)
+#     --> AWUSBRequestV2(cmd, address, len, flags)
+#     --> WRITE(data, len)
+#     <-- READ(13) -> AWUSBResponse
+#  (or)
+# => Read
+#     --> AWUSBRequestV2(cmd, address, len, flags)
+#     <-- READ(len)
 #     <-- READ(13) -> AWUSBResponse
 #
 # @example Some important info about memory layout. Treat ranges as [a..b-1]
@@ -135,11 +146,11 @@ require_relative 'libsparse'
 #    *** Flash tool asks user if he would like to do format or upgrade
 # @example Flash process (A10) (FES) (boot 1.0)
 #    1. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
-#    2. FES_TRANSMITE (read flag, index:dram): Get 256 of data from 0x7e00 (filed 0xCC)
+#    2. FES_TRANSMIT (read flag, index:dram): Get 256 of data from 0x7e00 (filed 0xCC)
 #    3. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
 #    These 3 steps above seems optional
-#    4. FES_TRANSMITE: (:write, :dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
-#    5. FES_TRANSMITE: (:write, :dram): Send 5496 of data at 0x40900000
+#    4. FES_TRANSMIT: (:write, :dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
+#    5. FES_TRANSMIT: (:write, :dram): Send 5496 of data at 0x40900000
 #    => (SYS_PARA,...)
 #    6. Write element: (fed_nand.axf, de, :dram), 129056 bytes at 0x40430000
 #    7. FES_RUN: Run code at 0x40430000, max_para => 49 (fed|has_para)
@@ -149,15 +160,15 @@ require_relative 'libsparse'
 #    9.FES_GET_MSG: (address: 0x400) => probably returned data size
 #    => returns 1024 bytes
 #    ---------- Writing partition start
-#     I.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_cr_start.fex)
-#     II.FES_TRANSMITE: (:write|:start, :nand2) Send bootloader.fex (nanda) at 0x8000 in 65536 chunks,
+#     I.FES_TRANSMIT: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_cr_start.fex)
+#     II.FES_TRANSMIT: (:write|:start, :nand2) Send bootloader.fex (nanda) at 0x8000 in 65536 chunks,
 #                      but address offset must be divided by 512 => 65536/512 = 128.
 #                      Thus (0x8000, 0x8080, 0x8100, etc), at last chunk :finish context must be set,
 #                      and at first chunk :start context must be set
-#     III.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_cr_end.fex)
-#     IV.FES_TRANSMITE: (:read, :dram): Read 12 bytes of data from 0x40023C00
+#     III.FES_TRANSMIT: (:write, :dram): Send 128 bytes of data at 0x40330000 (magic_cr_end.fex)
+#     IV.FES_TRANSMIT: (:read, :dram): Read 12 bytes of data from 0x40023C00
 #     => AWFESVerifyStatusResponse, optional step
-#     V.FES_TRANSMITE: (:write, :dram): Send 12 bytes of data from 0x40023C00
+#     V.FES_TRANSMIT: (:write, :dram): Send 12 bytes of data from 0x40023C00
 #     => Clear AWFESVerifyStatusResponse buffer with 0x00s, optional
 #    ---------- Writing partition end
 #    10.Write partition: "env.fex", "boot.fex", "system.fex", "recovery.fex"
@@ -175,10 +186,10 @@ require_relative 'libsparse'
 #    ---------- End of update boot1
 #    ---------- Update boot0
 #    18.Write element: (boot0.bin,de) 24576 bytes at 0x40600000
-#    19.FES_TRANSMITE: (:write, :dram): Send 5496 => sun4i, 10080 => sun6i bytes
+#    19.FES_TRANSMIT: (:write, :dram): Send 5496 => sun4i, 10080 => sun6i bytes
 #       of data at 0x40400000
 #    => (SYS_PARA,...)
-#    20.FES_TRANSMITE: (:write, :dram): Send 172 bytes of data at 0x40410000
+#    20.FES_TRANSMIT: (:write, :dram): Send 172 bytes of data at 0x40410000
 #    =>  "01 00 01 00 01 01 01 01 01 02 10 00 00 01 00 10..." @todo
 #    21.Write element: (update_boot0.axf, de), 114352 bytes at 0x40430000
 #    22.FES_RUN: Run code at 0x40430000, max_para => 17 (len)
@@ -187,25 +198,25 @@ require_relative 'libsparse'
 #    24.FES_GET_MSG: (address: 0x400) => probably returned data size
 #    => returns 1024 bytes (...)"updateBootxOk000"
 #    --------- End of update boot0
-#    25.FES_TRANSMITE: (:write, :dram): Send 4 bytes of data at 0x7E04
+#    25.FES_TRANSMIT: (:write, :dram): Send 4 bytes of data at 0x7E04
 #    => 0x1234A5CD (finish flag)
 #    26. Write element (fet_restore.axf, de)
 #    => Run params are 0x00s * 16
 #
 #    --- Writing element
-#    I.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at
+#    I.FES_TRANSMIT: (:write, :dram): Send 128 bytes of data at
 #      0x40330000 => sun4i, 0x40360000 => sun6i (magic_XX_start.fex)
-#    II.FES_TRANSMITE: (:write, FLAG): Send X bytes of data at 0x40430000 (FILE)
-#    III.FES_TRANSMITE: (:write, :dram): Send 128 bytes of data at
+#    II.FES_TRANSMIT: (:write, FLAG): Send X bytes of data at 0x40430000 (FILE)
+#    III.FES_TRANSMIT: (:write, :dram): Send 128 bytes of data at
 #      0x40330000 => sun4i, 0x40360000 => sun6i (magic_XX_end.fex)
 #    ---- End of writing element
 #
 # @example Flash process (A31s) (FES) (boot 2.0)
 #    1. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
-#    2. FES_TRANSMITE (read flag, index:dram): Get 256 of data form 0x7e00 (filed 0xCC)
+#    2. FES_TRANSMIT (read flag, index:dram): Get 256 of data form 0x7e00 (filed 0xCC)
 #    3. FEL_VERIFY_DEVICE: Allwinner A31s (sun6i), revision 0, FW: 1, mode: fes
 #    These 3 steps above seems optional
-#    4. FES_TRANSMITE: (write flag, index:dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
+#    4. FES_TRANSMIT: (write flag, index:dram): Send 256 of data at 0x7e00  (0x00000000, rest 0xCC)
 #    5. FES_DOWNLOAD: Send 16 bytes @ 0x0, flags erase|finish (0x17f04) ((DWORD)0x01, rest 0x00)
 #                     => Force sys_config.fex's erase_flag to 1
 #    6. FES_VERIFY_STATUS: flags erase (0x7f04). Return  flags => 0x6a617603, crc => 0
@@ -258,7 +269,7 @@ class FELix
       raise FELFatal, "Unexcepted argument type: #{device.inspect}" unless device.
       kind_of?(LIBUSB::Device)
       @handle = device.open
-      #@handle.detach_kernel_driver(0)
+      @handle.detach_kernel_driver(0) if RUBY_PLATFORM=~/linux/i && @handle.kernel_driver_active?(0)
       @handle.claim_interface(0)
       @usb_out = device.endpoints.select { |e| e.direction == :out }[0]
       @usb_in = device.endpoints.select { |e| e.direction == :in }[0]
@@ -280,6 +291,7 @@ class FELix
       @handle.close if @handle
       # Open new one
       @handle = device[0].open
+      @handle.detach_kernel_driver(0) if RUBY_PLATFORM=~/linux/i && @handle.kernel_driver_active?(0)
       @handle.claim_interface(0)
       @usb_out = device[0].endpoints.select { |e| e.direction == :out }[0]
       @usb_in = device[0].endpoints.select { |e| e.direction == :in }[0]
@@ -307,8 +319,8 @@ begin
   # MemoryInteger: extended ComputerInteger that accepts units (KB, MB, GB)
   MemoryInteger = /(?:0x[\dA-F]+(?:_[\dA-F]+)*|\d+(?:_\d+)*[kmg]?b?)/i
   Modes = [:fel, :fes]
-  AddressCmds = [:write, :read, :run, :transmite, :crc]
-  LengthCmds = [:read, :transmite, :crc]
+  AddressCmds = [:write, :read, :run, :transmit, :crc]
+  LengthCmds = [:read, :transmit, :crc]
   OptionParser.new do |opts|
       opts.banner = "Usage: felix action [options]"
       opts.separator "Actions:"
@@ -369,6 +381,33 @@ begin
           exit FELIX_FAIL
         rescue Errno::ENOENT
           puts "File not found!"
+          exit FELIX_FAIL
+        end
+        exit FELIX_SUCCESS
+      end
+      opts.on("--decompress-sparse path", String, "Decompress a sparse image (output to STDOUT!)") do |f|
+        begin
+          header = File.read(f, 64) # read first 64 bytes
+          raise SparseError, "Not a sparse file" unless SparseImage.is_valid?(header)
+            File.open(f, "rb") do |file|
+              sparse = SparseImage.new(file)
+              STDERR.puts "File: #{f}"
+              STDERR.puts "Uncompressed size: #{sparse.get_final_size} (#{sparse.
+                get_final_size >> 20} MB)"
+              STDERR.print "Decompressing..."
+              i = 1
+              sparse.each_chunk do |ch|
+                print ch
+                STDERR.print "\rDecompressing...%d/%d" % [i, sparse.count_chunks]
+                i+= 1
+              end
+              STDERR.puts "\nDone"
+            end
+        rescue SparseError => e
+          STDERR.puts "Invalid image: ".red << "#{e}"
+          exit FELIX_FAIL
+        rescue Errno::ENOENT
+          STDERR.puts "File not found!"
           exit FELIX_FAIL
         end
         exit FELIX_SUCCESS
@@ -489,16 +528,22 @@ begin
         $options[:action] = :storage
         $options[:how] = b
       end
-      opts.on("--transmite file", "Read/write. May be used with --index" <<
+      opts.on("--transmit file", "Read/write. May be used with --index" <<
         ", --address, --length. Omit --length if you want to write. Default" <<
         " index is :dram") do |f|
-         $options[:action] = :transmite
+         $options[:action] = :transmit
          $options[:file] = f
       end
       opts.on("--crc", "Get checksum of the memory block. Must be used with " <<
         "--address and --length") { $options[:action] = :crc }
       opts.on("--reboot", "Reboot device") { $options[:action] = :reboot }
       opts.on("--info", "Get code exection status") { $options[:action] = :info }
+      opts.on("--status-secure", "Get security system status flag") do
+         $options[:action] = :query_secure
+      end
+      opts.on("--status-storage", "Get storage type used to boot") do
+         $options[:action] = :query_storage
+      end
 
       opts.separator "\n* Options".light_blue.underline
       opts.on("-d", "--device num", Integer,
@@ -551,7 +596,7 @@ begin
   $options[:tags] = [:none] unless $options[:tags]
   $options[:mode] = :fel unless $options[:mode]
   # if argument is specfied we want to receive data from the device
-  $options[:direction] = [:read, :transmite].include?($options[:action]) ? :read : :write
+  $options[:direction] = [:read, :transmit].include?($options[:action]) ? :read : :write
 
   raise OptionParser::InvalidArgument, "Invalid tag. Please specify one or" <<
     " more of " << AWTags.keys.join(", ") unless ($options[:tags] - AWTags.
@@ -561,11 +606,11 @@ begin
        $options[:address] == nil))
   raise OptionParser::MissingArgument, "You must specify --address and " <<
     "--length or --item!" if($options[:direction] == :read && !$options[:item] &&
-    ($options[:length] == nil || $options[:address] == nil) && [:read, :transmite].
+    ($options[:length] == nil || $options[:address] == nil) && [:read, :transmit].
     include?($options[:action]))
   raise OptionParser::MissingArgument, "You must specify --address!" if
     $options[:direction] == :write && !$options[:item] && !$options[:address] &&
-    [:write, :transmite, :run].include?($options[:action])
+    [:write, :transmit, :run].include?($options[:action])
 rescue OptionParser::MissingArgument => e
   puts "#{e.message.camelize}. Type felix --help to see usage"
   exit FELIX_FAIL
@@ -619,8 +664,18 @@ begin
     status = fel.info
     puts "[OK]".green unless $options[:verbose]
     AWFESInfoResponse.read(status).pp
+  when :query_secure
+    print "* Checking security flag".ljust(57) << "\t" unless $options[:verbose]
+    status = fel.query_secure
+    puts "[OK]".green unless $options[:verbose]
+    puts "* Security flag is: %s (%d)" % [ status.to_s.yellow, AWSecureStatusMode[status] ]
+  when :query_storage
+    print "* Checking storage flag".ljust(57) << "\t" unless $options[:verbose]
+    status = fel.query_storage
+    puts "[OK]".green unless $options[:verbose]
+    puts "* Used storage is: %s (%d)" % [status.to_s.yellow, AWStorageType[status]]
   when :mbr
-    print ("* Writing new paratition table" << (format ? " and formatting storage" :
+    print ("* Writing new paratition table" << ($options[:format] ? " and formatting storage" :
       "")).ljust(57) << "\t" unless $options[:verbose]
     mbr = File.read($options[:file])
     status = fel.write_mbr(mbr, $options[:format])
@@ -633,7 +688,11 @@ begin
       percent = (b * 100) / 16384
       print "#{percent}%".ljust(4).light_blue unless percent == 100
     end
-    mbr = AWMBR.read(data)
+    begin
+      mbr = AWMBR.read(data)
+    rescue BinData::ValidityError => e
+      raise FELFatal, "\nInvalid MBR. Please use --mbr to write the partition table"
+    end
     puts "[OK]".green unless $options[:verbose]
     mbr.inspect
   when :storage
@@ -650,7 +709,11 @@ begin
         percent = (b * 100) / 16384
         print "#{percent}%".ljust(4).light_blue unless percent == 100
       end
-      mbr = AWMBR.read(data)
+      begin
+        mbr = AWMBR.read(data)
+      rescue BinData::ValidityError => e
+        raise FELFatal, "\nInvalid MBR. Please use --mbr to write the partition table"
+      end
       part = mbr.part_by_name($options[:item])
       raise FELError, "Partition not found in boot record" unless part
       puts "[OK]".green unless $options[:verbose]
@@ -658,39 +721,28 @@ begin
       $options[:length] = part.lenlo * FELIX_SECTOR
       $options[:mode] = :fes
     end
+    f = File.open($options[:file], "w")
     print "* #{$options[:mode]}: Reading data".ljust(57) << "\t" unless $options[:verbose]
     data = fel.read($options[:address], $options[:length], $options[:tags],
-      $options[:mode]) do |b|
+      $options[:mode]) do |b, chunk|
         print ("\r* #{$options[:mode]}: Reading data (" <<
         "#{b}/#{$options[:length]} bytes)").ljust(57) << "\t" unless $options[:verbose]
         percent = (b * 100) / $options[:length]
+        f.write(chunk)
         print "#{percent}%".ljust(4).light_blue unless percent == 100
     end
-    File.open($options[:file], "w") { |f| f.write(data) }
     puts "[OK]".green unless $options[:verbose]
   when :write
     header = File.read($options[:file], 64) # read first 64 bytes
-    if SparseImage.is_valid?(header) # Decompress sparse image
-      unsparsed = String.new
+    file_size = 0
+    sparsed = SparseImage.is_valid?(header)
+    if sparsed
       File.open($options[:file], "rb") do |file|
         sparse = SparseImage.new(file)
-        print "* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-        i = 0
-        sparse.each_chunk do |chunk|
-          i+=1
-          print "\r* Decompressing sparse image".ljust(57) << "\t" unless $options[:verbose]
-          percent =  (i * 100) / sparse.count_chunks
-          print "#{percent}%".ljust(4).light_blue if percent != 100 && !$options[:verbose]
-          unsparsed << chunk
-        end
-        puts "[OK]".green unless $options[:verbose]
+        file_size = sparse.get_final_size
       end
-      file = unsparsed
     else
-      file = File.read($options[:file])
-      print ("* Read file (#{file.bytesize} bytes" <<
-      ")").ljust(57) << "\t" unless $options[:verbose]
-      puts "[OK]".green unless $options[:verbose]
+      file_size = File.size($options[:file])
     end
     if $options[:item]
       # Read all data from MBR
@@ -705,35 +757,132 @@ begin
       rescue FELFatal => e
         raise FELFatal, "\nFailed to get device MBR. Did you enable NAND access? (--nand)"
       end
-      mbr = AWMBR.read(data)
+      begin
+        mbr = AWMBR.read(data)
+      rescue BinData::ValidityError => e
+        raise FELFatal, "\nInvalid MBR. Please use --mbr to write the partition table"
+      end
       part = mbr.part_by_name($options[:item])
       raise FELError, "Partition not found in boot record" unless part
       puts "[OK]".green unless $options[:verbose]
       $options[:address] = part.address_low
       real_len = part.lenlo * FELIX_SECTOR
       raise FELError, "File is too big (partition size is " <<
-        "#{real_len})" if file.bytesize > real_len
+        "#{real_len})" if file_size > real_len
     end
-    fel.write($options[:address], file, $options[:tags], $options[:mode]) do |b|
-      print ("\r* #{$options[:mode]}: Writing data (" <<
-      "#{b}/#{file.bytesize} bytes)").ljust(57) << "\t" unless $options[:verbose]
-      percent = (b * 100) / file.bytesize
-      print "#{percent}%".ljust(4).light_blue unless percent == 100
+    print ("* Reading a file (#{file_size} bytes)")
+    curr_add = $options[:address]
+    if sparsed
+      File.open($options[:file], "rb") do |file|
+        sparse = SparseImage.new(file)
+        queue = Queue.new
+        len = 0
+        threads = []
+        threads << Thread.new do
+          i = 1
+          sparse.each_chunk do |ch, type|
+            len += ch.length
+            print ("\r* Decompressing...").ljust(57) << "\t" unless $options[:verbose]
+            queue << [ch, type]
+            i+=1
+            # Optimize memory usage (try to keep heap at 128MB)
+            while len > (128 << 20) && !queue.empty?
+              sleep 0.5
+            end
+          end
+        end
+        threads << Thread.new do
+          written = 0
+          sparse.count_chunks.times do |chunk_num|
+            data, chunk_type = queue.pop
+            len -= data.length
+            written+=data.bytesize
+
+            finish = (chunk_num == sparse.count_chunks - 1) || sparse.chunks[
+              chunk_num + 1].chunk_type == ChunkType[:dont_care] && (chunk_num ==
+              sparse.count_chunks - 2)
+            fel.write(curr_add, data, $options[:tags], $options[:mode], !finish) do |ch|
+              print ("\r* #{$options[:mode]}: Writing data (" <<
+              "#{written}/#{file_size} bytes)").ljust(57) << "\t" unless $options[:verbose]
+              percent = (written * 100) / file_size
+              print "#{percent}%".ljust(4).light_blue unless percent == 100
+            end
+            break if finish
+            next_sector=data.bytesize / FELIX_SECTOR
+            curr_add+=( next_sector ? next_sector : 1) # Write next sector if its less than FELIX_SECTOR
+          end
+        end
+        threads.each {|t| t.join}
+      end
+    else
+      queue = Queue.new
+      len = 0
+      threads = []
+      # reader
+      threads << Thread.new do
+        File.open($options[:file], "rb") do |file|
+          while not file.eof?
+            chunk = file.read(FELIX_MAX_CHUNK)
+            len+=chunk.bytesize
+            print ("\r* Reading a file").ljust(57) << "\t" unless $options[:verbose]
+            queue << chunk
+            # Optimize memory usage (try to keep heap at 128MB)
+            while len > (128 << 20) && !queue.empty?
+              sleep 0.5
+            end
+          end
+        end
+      end
+      # writter
+      threads << Thread.new do
+        written = 0
+        while written < file_size
+          data = queue.pop
+          written+=data.bytesize
+          len-=data.bytesize
+          fel.write(curr_add, data, $options[:tags], $options[:mode], written < file_size) do |b|
+            print ("\r* #{$options[:mode]}: Writing data (" <<
+            "#{written}/#{file_size} bytes)").ljust(57) << "\t" unless $options[:verbose]
+            percent = (written * 100) / file_size
+            print "#{percent}%".ljust(4).light_blue unless percent == 100
+          end
+          tags = 0
+          if $options[:tags].kind_of?(Array)
+            $options[:tags].each {|t| tags |= AWTags[t]}
+          else
+            tags |= AWTags[$options[:tags]]
+          end
+
+          if tags & AWTags[:dram] == 0 && $options[:mode] == :fes
+            next_sector=data.bytesize / FELIX_SECTOR
+            curr_add+=( next_sector ? next_sector : 1) # Write next sector if its less than FELIX_SECTOR
+          else
+            curr_add+=data.bytesize
+          end
+        end
+      end
+      threads.each {|t| t.join}
     end
     puts "[OK]".green unless $options[:verbose]
+    unless sparsed
+      print ("\r* Verifying").ljust(57) << "\t" unless $options[:verbose]
+      resp = fel.verify_status($options[:tags])
+      raise FELFatal, "Verification failed" if resp.crc != 0
+      puts "[OK]".green unless $options[:verbose]
+    end
   when :run
     print ("* #{$options[:mode]}: Executing code @ 0x%08x" %
       $options[:address]).ljust(57) << "\t" unless $options[:verbose]
     fel.run($options[:address], $options[:mode])
     puts "[OK]".green unless $options[:verbose]
-  when :transmite
+  when :transmit
     if $options[:direction] == :write
       print "* Reading file" unless $options[:verbose]
       data = File.read($options[:file])
       print " (#{data.bytesize} bytes)".ljust(57) << "\t" unless $options[:verbose]
     end
     data ||= nil
-    data = fel.transmite($options[:direction], :address => $options[:address],
+    data = fel.transmit($options[:direction], :address => $options[:address],
       :length => $options[:length], :memory => data, :media_index =>
       $options[:index]) do |b|
         print ("\r* #{$options[:mode]}: Transmiting data (" <<
@@ -832,21 +981,24 @@ begin
     FELHelpers.debug_packets($options[:file])
   when :flash
     print "* Checking device state".ljust(57) << "\t" unless $options[:verbose]
-    last_type = :action
+    last_type = nil
     fel.flash($options[:format]) do |s, type, arg|
-      puts "[OK]".ljust(4).green unless $options[:verbose] || type == :percent ||
-        last_type == :info
-      if type == :percent && arg
-        str = ""
-        str << "\r* #{s}".ljust(57) << "\t" unless $options[:verbose]
-        str << "#{arg}%".ljust(4).light_blue if !$options[:verbose] && arg < 100
-        print str
-      elsif type == :info
-        puts "  #{s}" unless $options[:verbose]
-      else
-        print "* #{s}".ljust(57) << "\t" unless $options[:verbose]
+      unless $options[:verbose]
+        if type == :percent && arg
+          str = ""
+          str << "\r* #{s}".ljust(57) << "\t"
+          str << "#{arg}%".ljust(4).light_blue if arg < 100
+          print str
+        elsif type == :info
+          puts "\n  #{s}".white
+        elsif type == :warn
+          puts "[#{s}]".ljust(4).yellow
+        else
+          puts "[OK]".ljust(4).green unless last_type && last_type != :percent
+          print "* #{s}".ljust(57) << "\t"
+        end
+        last_type = type
       end
-      last_type = type
     end
   when :boot2fes
     print "* Checking device info".ljust(57) << "\t" unless $options[:verbose]

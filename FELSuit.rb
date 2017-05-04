@@ -46,11 +46,11 @@ class FELSuit < FELix
     start = get_image_data(@structure.item_by_file("magic_#{prefix}_start.fex"))
     finish = get_image_data(@structure.item_by_file("magic_#{prefix}_end.fex"))
 
-    transmite(:write, :address => 0x40330000, :memory => start)
-    transmite(:write, :address => address, :memory => data, :media_index => index)
-    transmite(:write, :address => 0x40330000, :memory => finish)
+    transmit(:write, :address => 0x40330000, :memory => start)
+    transmit(:write, :address => address, :memory => data, :media_index => index)
+    transmit(:write, :address => 0x40330000, :memory => finish)
   rescue FELError => e
-    raise FELError, "Failed to transmite with magic (#{e})"
+    raise FELError, "Failed to transmit with magic (#{e})"
   end
 
   # Flash legacy image to the device
@@ -107,7 +107,7 @@ class FELSuit < FELix
     end
 
     yield "Sending DRAM config" if block_given?
-    transmite(:write, :address => 0x40900000, :memory => sys_para.to_binary_s)
+    transmit(:write, :address => 0x40900000, :memory => sys_para.to_binary_s)
     yield "Writing FED" if block_given?
     magic_write(:de, get_image_data(@structure.item_by_file("fed_nand.axf")),
       0x40430000)
@@ -120,10 +120,11 @@ class FELSuit < FELix
   # @raise [FELError, FELFatal] if failed
   # @param format [TrueClass, FalseClass] force storage format
   # @param verify [TrueClass, FalseClass] verify written data
+  # @param method [Symbol] protocol version (`:v1` or `:v2`)
   # @yieldparam [String] status
   # @yieldparam [Symbol] message type (:info, :percent, :action)
   # @yieldparam [Integer] message argument
-  def flash(format = false, verify = true)
+  def flash(format = false, verify = true, method = :v1)
     return flash_legacy(format) {|i| yield i} if legacy?
     # 1. Let's check device mode
     info = get_device_status
@@ -155,22 +156,27 @@ class FELSuit < FELix
       format = true
     end
     raise FELError, "Cannot flash new partition table" if status.crc != 0
-    # 5. Enable NAND
-    yield "Attaching NAND driver" if block_given?
+    # 5. Enable NAND / SDCARD access
+    yield "Enabling the storage access" if block_given?
     set_storage_state(:on)
     # 6. Write partitions
     dlinfo.item.each do |item|
       break if item.name.empty?
-      # Don't write udisk if format flag isn't set
-      next if item.name == "UDISK" && !format
+      sparsed = false
+      # Don't write udisk
+      # @todo add support for not empty udisk image
+      next if item.name == "UDISK"
       part = @structure.item_by_sign(item.filename)
       raise FELError, "Cannot find item: #{item.filename} in the " <<
         "image" unless part
 
+      # Check if the current item is a sparse image
+      sparsed = SparseImage.is_valid?(get_image_data(part, 64))
+
       # Check CRC of the image if it's the same - no need to spam NAND with the same data
       # This should speed up flashing process A LOT
       # But if format flag is set that's just waste of time
-      unless format || item.verify_filename.empty? || item.name == "system" then
+      unless format || item.verify_filename.empty? || sparsed then
         yield "Checking #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
@@ -185,7 +191,7 @@ class FELSuit < FELix
       end
       yield "Flashing #{item.name}" if block_given?
       curr_add = item.address_low
-      if item.name == "system"
+      if sparsed
         sys_handle = get_image_handle(part)
         sparse = SparseImage.new(sys_handle, part.off_len_low)
         # @todo
@@ -199,7 +205,7 @@ class FELSuit < FELix
 
           sparse.each_chunk do |data, type|
             len += data.length
-            yield ("Decompressing #{item.name}"), :percent, (i * 100) / sparse.
+            yield ("Decompressing sparse image #{item.name}"), :percent, (i * 100) / sparse.
               count_chunks if block_given?
             queue << [data, type]
             i+=1
@@ -222,13 +228,13 @@ class FELSuit < FELix
             finish = (chunk_num == sparse.count_chunks - 1) || sparse.chunks[
               chunk_num + 1].chunk_type == ChunkType[:dont_care] && (chunk_num ==
               sparse.count_chunks - 2)
-            write(curr_add, data, :none, :fes, !finish) do |ch|
+            write(curr_add, data, :none, :fes, !finish, method: method) do |ch|
               yield ("Writing #{item.name} @ 0x%08x" % (curr_add + (ch / 512))),
                 :percent, ((written - data.bytesize + ch) * 100) / sparse.
                 get_final_size if block_given?
             end
             break if finish
-            curr_add+=data.bytesize / 512
+            curr_add+=data.bytesize / FELIX_SECTOR
           end
           yield "Writing #{item.name}", :percent, 100 if block_given?
         end
@@ -236,61 +242,107 @@ class FELSuit < FELix
       else
         queue = Queue.new
         threads = []
+        len = 0
+        data_size = part.data_len_low
         # reader
         threads << Thread.new do
           read = 0
-          get_image_data(part) do |data|
-            read+=data.bytesize
-            yield "Reading #{item.name}", :percent, (read * 100) / part.
-              data_len_low if block_given?
-            queue << data
+          if item.name == "sysrecovery"
+          # sysrecovery is a partition that consist the flashed image
+            data_size = File.size(@image)
+            File.open(@image, "rb") do |f|
+              while not f.eof?
+                chunk = f.read(FELIX_MAX_CHUNK)
+                read+=chunk.bytesize
+                len+=chunk.bytesize
+                yield "Reading #{item.name}", :percent, (read * 100) / data_size if block_given?
+                queue << chunk
+                while len > (128 << 20) && !queue.empty?
+                  sleep 0.5
+                end
+              end
+            end
+          else
+            get_image_data(part) do |data|
+              read+=data.bytesize
+              len+=data.bytesize
+              yield "Reading #{item.name}", :percent, (read * 100) / data_size if block_given?
+              queue << data
+              while len > (128 << 20) && !queue.empty?
+                sleep 0.5
+              end
+            end
           end
         end
         # writter
         threads << Thread.new do
           written = 0
-          while written < part.data_len_low
+          while written < data_size
             data = queue.pop
             written+=data.bytesize
-            write(curr_add, data, :none, :fes, written < part.data_len_low) do
-              yield "Writing #{item.name}", :percent, (written * 100) / part.
-                data_len_low if block_given?
+            len-=data.bytesize
+            write(curr_add, data, :none, :fes, written < data_size, method: method) do
+              yield "Writing #{item.name}", :percent, (written * 100) / data_size if block_given?
             end
-            curr_add+=data.bytesize / 512
+            curr_add+=(data.bytesize / FELIX_SECTOR)
           end
           yield "Writing #{item.name}", :percent, 100 if block_given?
         end
         threads.each {|t| t.join}
       end
       # Verify CRC of written data
-      if verify && !(["system", "UDISK"].include?(item.name)) then
+      if verify && item.name != "UDISK" && !sparsed then
         # @todo Check why system partition's CRC is not matching
         yield "Verifying #{item.name}" if block_given?
         crc = verify_value(item.address_low, part.data_len_low)
         crc_item = @structure.item_by_sign("V" << item.filename[0...-1])
-        valid_crc = get_image_data(crc_item)
-        # try again if verification failed
-        if crc.crc != valid_crc.unpack("V")[0] then
-          yield "CRC mismatch for #{item.name}: (#{crc.crc} !=" <<
+        if crc_item
+          valid_crc = get_image_data(crc_item)
+          # try again if verification failed
+          if crc.crc != valid_crc.unpack("V")[0] then
+            yield "CRC mismatch for #{item.name}: (#{crc.crc} !=" <<
             " #{valid_crc.unpack("V")[0]}). Trying again...", :info if block_given?
-          redo
+            redo
+          end
+        else
+          yield "SKIP", :warn if block_given?
         end
       end
     end
-    # 7. Disable NAND
-    yield "Detaching NAND driver" if block_given?
+    # 7. Disable storage
+    yield "Disabling the storage access" if block_given?
     set_storage_state(:off)
     # 8. Write u-boot
+    # @todo toc1.fex & toc0.fex should be written if secure flag is set
     yield "Writing u-boot" if block_given?
-    write(0, uboot, :uboot, :fes) do |n|
+    write(0, uboot, :uboot, :fes, method: method) do |n|
       yield "Writing u-boot", :percent, (n * 100) / uboot.bytesize if block_given?
     end
+    yield "Veryfing u-boot" if block_given?
+    resp = verify_status(:uboot)
+    raise FELFatal, "Failed to update u-boot" if resp.crc != 0
     # 9. Write boot0
-    boot0 = get_image_data(@structure.item_by_file("boot0_nand.fex"))
+    yield "Checking the storage type" if block_given?
+    storage = query_storage
+    boot0_file = String.new
+    case storage
+    when :nand
+      boot0_file = "boot0_nand.fex"
+    when :card, :card2
+      boot0_file = "boot0_sdcard.fex"
+    when :spinor
+      boot0_file = "boot0_spinor.fex"
+    else
+      raise FELFatal, "Unknown storage type (#{storage})"
+    end
+    boot0 = get_image_data(@structure.item_by_file(boot0_file))
     yield "Writing boot0" if block_given?
-    write(0, boot0, :boot0, :fes) do |n|
+    write(0, boot0, :boot0, :fes, method: method) do |n|
       yield "Writing boot0", :percent, (n * 100) / boot0.bytesize if block_given?
     end
+    yield "Veryfing boot0" if block_given?
+    resp = verify_status(:boot0)
+    raise FELFatal, "Failed to update boot0" if resp.crc != 0
     # 10. Reboot
     yield "Rebooting" if block_given?
     set_tool_mode(:usb_tool_update, :none)
@@ -302,14 +354,14 @@ class FELSuit < FELix
   # @param uboot [String] U-boot binary data (u-boot.fex)
   # @param mode [Symbol<AWUBootWorkMode>] desired work mode
   # @todo Verify header (eGON.BT0, uboot)
-  # @raise [String] error name
+  # @raise [FELError]
   def boot_to_fes(egon, uboot, mode = :usb_product)
     raise FELError, "Unknown work mode (#{mode.to_s})" unless AWUBootWorkMode[mode]
     raise FELError, "eGON is too big (#{egon.bytesize}>16384)" if egon.bytesize>16384
     write(0x2000, egon)
     run(0x2000)
     write(0x4a000000, uboot)
-    write(0x4a0000e0, AWUBootWorkMode[mode].chr) if mode
+    write(0x4a0000e0, AWUBootWorkMode[mode].chr) unless mode == :boot
     run(0x4a000000)
   end
 
@@ -319,7 +371,7 @@ class FELSuit < FELix
   # @param fes2 [String] fes.fex binary
   # @param fes2_next [String] fes_2.fex binary
   # @param dram_cfg [AWSystemParameters] DRAM params (recreated from sys_config if empty)
-  # @raise [String] error name if happens
+  # @raise [FELError]
   # @note Only for legacy images
   def boot_to_fes_legacy(fes, fes_next, fes2, fes2_next, dram_cfg = nil)
     raise FELError, "FES1-1 is too big (#{fes.bytesize}>2784)" if fes.

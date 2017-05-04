@@ -52,6 +52,20 @@ class AWUSBRequest < BinData::Record # size 32
   array    :reserved, :type => :uint8, :initial_length  => 10, :value => 0
 end
 
+#0000   06 02
+#       00 00 00 00
+#       00 80 00 00 => data_len
+#       03 7f
+#       01 00
+#0010   41 57 55 43                                      AWUC
+class AWUSBRequestV2 < BinData::Record # size 20, used on A83T
+  uint32le :cmd,       :initial_value => FELCmd[:verify_device]
+  uint32le :address,   :initial_value => 0
+  uint32le :len,       :initial_value => 0
+  uint32le :flags,     :initial_value => AWTags[:none] # one or more of FEX_TAGS
+  string   :magic,     :length => 4, :initial_value => "AWUC"
+end
+
 class AWUSBResponse < BinData::Record # size 13
   string   :magic, :length => 4, :initial_value => "AWUS"
   uint32le :tag
@@ -80,7 +94,7 @@ end
 
 # Boot 1.0 way to download data
 class AWFESTrasportRequest < BinData::Record # size 16
-  uint16le :cmd, :value => FESCmd[:transmite]
+  uint16le :cmd, :value => FESCmd[:transmit]
   uint16le :tag, :initial_value => 0
   uint32le :address
   uint32le :len
@@ -317,7 +331,13 @@ class AWSunxiPartition < BinData::Record
   uint32 :user_type, :initial_value => 0x8000
   uint32 :keydata, :initial_value => 0
   uint32 :ro, :initial_value => 0
-  array  :reserved, :type => :uint8, :initial_length => 68
+  # For A83
+  uint32 :sig_verify
+  uint32 :sig_erase
+  array  :sig_value, :type => :uint32, :initial_length => 4
+  uint32 :sig_pubkey;
+  uint32 :sig_pbumode;
+  array  :reserved, :type => :uint8, :initial_length => 36
 end
 
 # Size 64
@@ -341,7 +361,9 @@ class AWSunxiMBR < BinData::Record
   uint32le :part_count, :value => lambda { part.select { |p| not p.name.empty? }.count  }
   uint32le :stamp, :initial_value => 0
   array    :part, :type => :aw_sunxi_partition, :initial_length => 120
-  array    :reserved, :type => :uint8, :initial_length => 992
+  # For A83
+  uint32le :lockflag
+  array    :reserved, :type => :uint8, :initial_length => (992 - 4)
 end
 
 #Legacy mbr (softw311), record size: 1024
@@ -369,8 +391,8 @@ class AWMBR < BinData::Record
   #
   # Produces following output
   # --------------------------
-  #   *   bootloader (nanda) @ 0x8000    [16MB]
-  #   *   env        (nandb) @ 0x10000   [16MB]
+  #   *   bootloader (nanda) @ 0x8000    [16MB] [0x00000000]
+  #   *   env        (nandb) @ 0x10000   [16MB] [0x00000000]
   #   *   ...
   def inspect
     self.each_pair do |k, v|
@@ -388,8 +410,8 @@ class AWMBR < BinData::Record
             j.each do |p|
               break if p.name.empty?
               print "%-40s" % p.name.yellow
-              puts "(nand%s) @ 0x%08x [% 5d MB]" % [c,
-                p.address_low, p.lenlo/2048 ]
+              puts "(nand%s) @ 0x%08x [% 5d MB] [0x%08x]" % [c,
+                p.address_low, p.lenlo/2048, p.keydata]
                 c.next!
               end
           else

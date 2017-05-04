@@ -20,21 +20,26 @@ class FELix
 
   # Send a request
   # @param data the binary data
+  # @param method [Symbol] a method of transfer (`:v1` or `:v2`)
   # @raise [FELError, FELFatal]
-  def send_request(data)
+  def send_request(data, method = :v1)
   # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
-    request = AWUSBRequest.new
-    request.len = data.bytesize
-    FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
-    @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
-     @usb_out, :timeout=>(5 * 1000))
+    if method == :v1
+      request = AWUSBRequest.new
+      request.len = data.bytesize
+      FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
+      @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint =>
+       @usb_out, :timeout=>(5 * 1000))
+   end
   # 2. Send a proper data
     FELHelpers.debug_packet(data, :write) if $options[:verbose]
     @handle.bulk_transfer(:dataOut => data, :endpoint => @usb_out, :timeout=>(5 * 1000))
   # 3. Get AWUSBResponse
-  # Some request takes a lot of time (i.e. NAND format). Try to wait 60 seconds for response.
-    r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in, :timeout=>(60 * 1000))
-    FELHelpers.debug_packet(r3, :read) if $options[:verbose]
+    if method == :v1
+    # Some request takes a lot of time (i.e. NAND format). Try to wait 60 seconds for response.
+      r3 = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in, :timeout=>(60 * 1000))
+      FELHelpers.debug_packet(r3, :read) if $options[:verbose]
+    end
   rescue LIBUSB::ERROR_INTERRUPTED, LIBUSB::ERROR_TIMEOUT
     raise FELError, "Transfer cancelled"
   rescue => e
@@ -44,21 +49,26 @@ class FELix
 
   # Read data
   # @param len an expected length of the data
+  # @param method [Symbol] a method of transfer (`:v1` or `:v2`)
   # @return [String] the binary data
   # @raise [FELError, FELFatal]
-  def recv_request(len)
+  def recv_request(len, method = :v1)
   # 1. Send AWUSBRequest to inform what we want to do (write/read/how many data)
-    request = AWUSBRequest.new
-    request.len = len
-    request.cmd = USBCmd[:read]
-    FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
-    @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => @usb_out)
+    if method == :v1
+      request = AWUSBRequest.new
+      request.len = len
+      request.cmd = USBCmd[:read]
+      FELHelpers.debug_packet(request.to_binary_s, :write) if $options[:verbose]
+      @handle.bulk_transfer(:dataOut => request.to_binary_s, :endpoint => @usb_out)
+    end
   # 2. Read data of length we specified in request
     recv_data = @handle.bulk_transfer(:dataIn => len, :endpoint => @usb_in)
     FELHelpers.debug_packet(recv_data, :read) if $options[:verbose]
   # 3. Get AWUSBResponse
-    response = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
-    FELHelpers.debug_packet(response, :read) if $options[:verbose]
+    if method == :v1
+      response = @handle.bulk_transfer(:dataIn => 13, :endpoint => @usb_in)
+      FELHelpers.debug_packet(response, :read) if $options[:verbose]
+    end
     recv_data
   rescue LIBUSB::ERROR_INTERRUPTED, LIBUSB::ERROR_TIMEOUT
     raise FELError, "Transfer cancelled"
@@ -73,16 +83,19 @@ class FELix
   # @param request [AWFELMessage, AWFELStandardRequest] a request
   # @param size [Integer] an expected size of an answer (for `:pull`)
   # @param data [String] the binary data (for `:push`)
+  # @param method [Symbol] a method of transfer (`:v1` or `:v2`)
   # @return [String, nil] the received answer (for `:pull`)
   # @raise [FELError, FELFatal]
-  def transfer(direction, request, size:nil, data:nil)
+  def transfer(direction, request, size:nil, data:nil, method: :v1)
     raise FELFatal, "\nAn invalid argument for :pull" if data && direction == :pull
     raise FELFatal, "\nAn invalid argument for :push" if size && direction == :push
     raise FELFatal, "\nAn invalid direction: #{direction}" unless [:pull, :push].
       include? direction
+    raise FELFatal, "\nAn invalid transfer method #{method}" unless [:v1, :v2].
+      include? method
 
     begin
-      send_request(request.to_binary_s)
+      send_request(request.to_binary_s, method)
     rescue FELError
       retry
     rescue FELFatal => e
@@ -94,15 +107,15 @@ class FELix
     case direction
     when :pull
       begin
-        answer = recv_request(size)
-        raise FELFatal, "An unexpected answer length ( #{answer.length} <>" <<
+        answer = recv_request(size, method)
+        raise FELFatal, "\nAn unexpected answer length (#{answer.length} <>" <<
           " #{size})" if answer.length!= size
       rescue FELFatal => e
         raise FELFatal, "\nFailed to get the data (#{e})"
       end if size > 0
     when :push
         begin
-          send_request(data)
+          send_request(data, method)
         rescue FELError
           retry
         rescue FELFatal => e
@@ -111,10 +124,18 @@ class FELix
     end
 
     begin
-      data = recv_request(8)
-      status = AWFELStatusResponse.read(data)
-      raise FELError, "\nCommand execution failed (Status #{status.state})" if
-        status.state > 0
+      case method
+      when :v1
+        data = recv_request(8, method)
+        status = AWFELStatusResponse.read(data)
+        raise FELError, "\nCommand execution failed (Status #{status.state})" if
+          status.state > 0
+      when :v2
+        data = recv_request(13, method)
+        status = AWUSBResponse.read(data)
+        raise FELError, "\nCommand execution failed (Status #{status.csw_status})" if
+          status.csw_status != 0
+      end
     rescue BinData::ValidityError => e
       raise FELFatal, "\nAn unexpected device response: #{e}"
     rescue FELFatal => e
@@ -129,6 +150,7 @@ class FELix
   # @raise [FELError, FELFatal]
   def get_device_status
     answer = transfer(:pull, AWFELStandardRequest.new, size: 32)
+    #answer = transfer(:pull, AWUSBRequestV2.new, size: 32, method: :v2)
     AWFELVerifyDeviceResponse.read(answer)
   end
 
@@ -137,18 +159,19 @@ class FELix
   # @param length [Integer] a size of the read memory
   # @param tags [Symbol, Array<AWTags>] an operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] an operation mode `:fel` or `:fes`
-  # @return [String] the requested memory block
+  # @return [String] the requested memory block if block has only one parameter
   # @raise [FELError, FELFatal]
   # @yieldparam [Integer] bytes read as far
+  # @yieldparam [String] read data chunk of `FELIX_MAX_CHUNK`
   # @note Not usable on the legacy fes (boot1.0)
-  def read(address, length, tags=[:none], mode=:fel)
+  def read(address, length, tags=[:none], mode=:fel, &block)
     raise FELError, "The length is not specifed" unless length
     raise FELError, "The address is not specifed" unless address
     result = ""
     remain_len = length
     request = AWFELMessage.new
-    request.cmd = FELCmd[:upload] if mode == :fel
-    request.cmd = FESCmd[:upload] if mode == :fes
+    request.cmd = mode == :fel ? FELCmd[:upload] : FESCmd[:upload]
+    request.address = address.to_i
     if tags.kind_of?(Array)
       tags.each {|t| request.flags |= AWTags[t]}
     else
@@ -156,24 +179,24 @@ class FELix
     end
 
     while remain_len>0
-      request.address = address.to_i
       if remain_len / FELIX_MAX_CHUNK == 0
         request.len = remain_len
       else
         request.len = FELIX_MAX_CHUNK
       end
 
-      result << transfer(:pull, request, size: request.len)
+      data = transfer(:pull, request, size: request.len)
+      result << data if block.arity < 2
       remain_len-=request.len
 
       # if EFEX_TAG_DRAM isnt set we read nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
         next_sector=request.len / 512
-        address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
+        request.address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
       else
-        address+=request.len
+        request.address+=request.len
       end
-      yield length-remain_len if block_given?
+      yield length-remain_len, data if block_given?
     end
     result
   end
@@ -184,16 +207,19 @@ class FELix
   # @param tags [Symbol, Array<AWTags>] an operation tag (zero or more of AWTags)
   # @param mode [AWDeviceMode] an operation mode `:fel` or `:fes`
   # @param dontfinish do not set finish tag in `:fes` context
+  # @param method [Symbol] communication method (`:v1` or `:v2`)
   # @raise [FELError, FELFatal]
   # @yieldparam [Integer] bytes written as far
   # @note Not usable on the legacy fes (boot1.0)
-  def write(address, memory, tags=[:none], mode=:fel, dontfinish=false)
+  def write(address, memory, tags=[:none], mode=:fel, dontfinish=false, method: :v1)
     raise FELError, "The memory is not specifed" unless memory
     raise FELError, "The address is not specifed" unless address
+
     total_len = memory.bytesize
     start = 0
-    request = AWFELMessage.new
+    request = method == :v1 ? AWFELMessage.new : AWUSBRequestV2.new
     request.cmd = mode == :fel ? FELCmd[:download] : FESCmd[:download]
+    request.address = address.to_i
     if tags.kind_of?(Array)
       tags.each {|t| request.flags |= AWTags[t]}
     else
@@ -201,7 +227,6 @@ class FELix
     end
 
     while total_len>0
-      request.address = address.to_i
       if total_len / FELIX_MAX_CHUNK == 0
         request.len = total_len
       else
@@ -211,16 +236,16 @@ class FELix
       request.flags |= AWTags[:finish] if mode == :fes &&
         total_len <= FELIX_MAX_CHUNK && dontfinish == false
 
-      transfer(:push, request, data: memory.byteslice(start, request.len))
+      transfer(:push, request, data: memory.byteslice(start, request.len), method: method)
 
       start+=request.len
       total_len-=request.len
       # if EFEX_TAG_DRAM isnt set we write nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
         next_sector=request.len / 512
-        address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
+        request.address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
       else
-        address+=request.len
+        request.address+=request.len
       end
       yield start if block_given? # yield sent bytes
     end
@@ -231,10 +256,11 @@ class FELix
   # @param mode [AWDeviceMode] an operation mode `:fel` or `:fes`
   # @param flags [Array<AWRunContext>] zero or more flags (in `:fes` only)
   # @param args [Array<Integer>] an array of arguments if `:has_param` flag is set
+  # @param method [Symbol] communication method (`:v1` or `:v2`)
   # @note `flags` is `max_para` in boot2.0
   # @raise [FELError, FELFatal]
-  def run(address, mode=:fel, flags = :none, args = nil)
-    request = AWFELMessage.new
+  def run(address, mode=:fel, flags = :none, args = nil, method: :v1)
+    request = method == :v1 ? AWFELMessage.new : AWUSBRequestV2.new
     request.cmd = mode == :fel ? FELCmd[:run] : FESCmd[:run]
     request.address = address
 
@@ -299,9 +325,14 @@ class FELix
     else
       request.flags |= AWTags[tags]
     end
-
-    answer = transfer(:pull, request, size: 12)
-    AWFESVerifyStatusResponse.read(answer)
+    # Verification finish flag may be not set immediately
+    5.times do
+      answer = transfer(:pull, request, size: 12)
+      resp = AWFESVerifyStatusResponse.read(answer)
+      return resp if resp.flags == 0x6a617603
+      sleep(300)
+    end
+    raise FELError, "The verify process has timed out"
   end
 
   # Verify the checksum of the given memory block
@@ -322,23 +353,64 @@ class FELix
 
   # Attach / detach the storage (handles `:flash_set_on` and `:flash_set_off`)
   # @param how [Symbol] a desired state of the storage (`:on` or `:off`)
+  # @param type [Integer] type of storage. Unused.
   # @raise [FELError, FELFatal]
   # @note Use only in a :fes mode. An MBR must be written before
-  def set_storage_state(how)
+  def set_storage_state(how, type=0)
     raise FELError, "An invalid parameter state (#{how})" unless [:on, :off].
       include? how
-    request = AWFELStandardRequest.new
+    request = AWFELMessage.new
     request.cmd = how == :on ? FESCmd[:flash_set_on] : FESCmd[:flash_set_off]
-
+    request.address = type # the address field is used for storage type
     transfer(:push, request)
   end
 
-  # Send a FES_TRANSMITE request
+  # Get security system status. (handles `:query_secure`)
+  # Secure flag is controlled by `secure_bit` in sys_config.fex
+  # See more: https://github.com/allwinner-zh/bootloader/blob/master/u-boot-2011.09/arch/arm/cpu/armv7/sun8iw7/board.c#L300
+  #
+  # @raise [FELError, FELFatal]
+  # @return [Symbol<AWSecureStatusMode>] a status flag
+  # @note Use only in a :fes mode
+  def query_secure
+    request = AWFELStandardRequest.new
+    request.cmd = FESCmd[:query_secure]
+
+    status = transfer(:pull, request, size: 4).unpack("V")[0]
+
+    if AWSecureStatusMode.has_value? status
+      AWSecureStatusMode.keys[status]
+    else
+      AWSecureStatusMode.keys[-1]
+    end
+  end
+
+  # Get currently default storage. (handles `:query_storage`)
+  # Used to determine which boot0 should be written
+  #
+  # @raise [FELError, FELFatal]
+  # @return [Symbol<AWStorageType>] a status flag or `:unknown`
+  # @note Use only in a :fes mode
+  def query_storage
+    request = AWFELStandardRequest.new
+    request.cmd = FESCmd[:query_storage]
+
+    status = transfer(:pull, request, size: 4).unpack("V")[0]
+
+    if AWStorageType.has_value? status
+      AWStorageType.keys[status]
+    else
+      :unknown
+    end
+  end
+
+
+  # Send a FES_TRANSMIT request
   # Can be used to read/write memory in FES mode
   #
   # @param direction [Symbol<FESTransmiteFlag>] one of FESTransmiteFlag (`:write` or `:read`)
   # @param opts [Hash] Arguments
-  # @option opts :address [Integer] place in memory to transmite
+  # @option opts :address [Integer] place in memory to transmit
   # @option opts :memory [String] data to write (use only with `:write`)
   # @option opts :media_index [Symbol<FESIndex>] one of index (default `:dram`)
   # @option opts :length [Integer] size of data (use only with `:read`)
@@ -348,7 +420,7 @@ class FELix
   # @yieldparam [Integer] read/written bytes
   # @note Use only in a :fes mode. Always prefer FES_DOWNLOAD/FES_UPLOAD instead of this in boot 2.0
   # @TODO: Replace opts -> named arguments
-  def transmite(direction, *opts)
+  def transmit(direction, *opts)
     opts = opts.first
     opts[:media_index] ||= :dram
     start = 0

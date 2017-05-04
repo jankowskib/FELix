@@ -74,6 +74,7 @@ class FELHelpers
       when 0x1650 then "Allwinner A23 (sun7i)"
       when 0x1651 then "Allwinner A20 (sun7i)"
       when 0x1667 then "Allwinner A33 (sun8i)"
+      when 0x1673 then "Allwinner A83 (sun8i)"
       else
         "Unknown: (0x%x)" % (id >> 8 & 0xFFFF)
       end
@@ -139,10 +140,18 @@ class FELHelpers
           print "USBWrite".yellow
           dir = :write
         else
-          print "AWUnknown (0x%x)".red % p.type
+          print "AWUnknown (0x%x)".red % p.cmd
         end
         puts "\t(Prepare for #{dir} of #{p.len} bytes)"
         #puts p.inspect
+      elsif packet.length == 20 && packet[16..19] == "AWUC"
+        p = AWUSBRequestV2.read(packet)
+        print "--> (% 5d) " % packet.length
+        dir = (p.cmd == FESCmd[:download] ? :write : :read)
+        print "FES#{FESCmd.key(p.cmd).camelize}".
+        light_blue if FESCmd.has_value?(p.cmd)
+        puts "\tTag: #{tags_to_s(p.flags)} (0x%04x), addr (0x%x)" % [p.flags, p.address]
+        puts "\t(Prepare for #{dir} of #{p.len} bytes)" if p.len > 0
       elsif packet[0..7] == "AWUSBFEX"
         p = AWFELVerifyDeviceResponse.read(packet)
         puts "<-- (% 5d) " % packet.bytesize << "FELVerifyDeviceResponse".
@@ -173,7 +182,7 @@ class FELHelpers
           case p.cmd
           when FELCmd[:verify_device] then puts "FELVerifyDevice"
             .light_blue <<  " (0x#{FELCmd[:verify_device]})"
-          when FESCmd[:transmite]
+          when FESCmd[:transmit]
             p = AWFESTrasportRequest.read(packet)
             print "FES#{FESCmd.key(p.cmd).camelize}: ".light_blue
             print FESTransmiteFlag.key(p.flags).to_s

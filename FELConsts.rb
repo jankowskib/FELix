@@ -17,7 +17,7 @@
 raise "Use ./felix to execute program!" if File.basename($0) == File.basename(__FILE__)
 
 # App version
-FELIX_VERSION = "1.0 RC4"
+FELIX_VERSION = "1.0 RC5"
 
 # Maximum data transfer length
 FELIX_MAX_CHUNK  = 65536
@@ -54,7 +54,7 @@ FELCmd = {
   :verify_device                   => 0x1, # [@get_device_status] can be used in FES
   :switch_role                     => 0x2,
   :is_ready                        => 0x3, # Read len 8, can be used in FES
-  :get_cmd_set_ver                 => 0x4, # can be used in FES
+  :get_cmd_set_ver                 => 0x4, # can be used in FES, may be used to check what commands are available (16 bytes)
   :disconnect                      => 0x10,
   :download                        => 0x101, # [@write] write
   :run                             => 0x102, # [@run] execute
@@ -63,7 +63,7 @@ FELCmd = {
 
 #FES Messages
 FESCmd = {
-  :transmite                       => 0x201, # [@transmite] read,write depends on flag
+  :transmit                        => 0x201, # [@transmit] read,write depends on flag, do not use
   :run                             => 0x202, # [@run]
   :info                            => 0x203, # [@info] get if FES_RUN has finished (32 bytes)
   :get_msg                         => 0x204, # [@get_msg] get result of last FES_RUN (param buffer size)
@@ -71,8 +71,8 @@ FESCmd = {
   # Following are available on boot2.0
   :download                        => 0x206, # [@write]
   :upload                          => 0x207, # [@read]
-  :verify                          => 0x208, # check CRC of given memory block
-  :query_storage                   => 0x209, # used to check if we boot from nand or sdcard
+  :verify                          => 0x208, # check CRC of given memory block, not implemented
+  :query_storage                   => 0x209, # [@query_storage] used to check if we boot from nand or sdcard
   :flash_set_on                    => 0x20A, # [@set_storage_state] exec sunxi_sprite_init(0) => no data
   :flash_set_off                   => 0x20B, # [@set_storage_state] exec sunxi_sprite_exit(1) => no data
   :verify_value                    => 0x20C, # [@verify_value] compute and return CRC of given mem block => AWFESVerifyStatusResponse
@@ -90,7 +90,7 @@ FESCmd = {
   :low_power_manger                => 0x215,
   :force_erase                     => 0x220,
   :force_erase_key                 => 0x221,
-  :query_secure                    => 0x230
+  :query_secure                    => 0x230 # [@query_secure]
 }
 
 # Mode returned by FELCmd[:verify_device]
@@ -102,6 +102,14 @@ AWDeviceMode = {
   :update_hot                      => 0x4
 }
 
+AWSecureStatusMode  = {
+  :sunxi_normal_mode                   => 0x0,
+  :sunxi_secure_mode_with_secureos     => 0x1,
+  :sunxi_secure_mode_no_secureos       => 0x2,
+  :sunxi_secure_mode                   => 0x3,
+  :sunxi_secure_mode_unknown           => -1  # added by me
+}
+
 # U-boot mode (uboot_spare_head.boot_data.work_mode,0xE0 offset)
 AWUBootWorkMode = {
   :boot                            => 0x0,  # normal start
@@ -110,7 +118,9 @@ AWUBootWorkMode = {
   :usb_product                     => 0x10, # FES mode
   :card_product                    => 0x11, # SD-card flash
   :usb_debug                       => 0x12, # FES mode with debug
+  :sprite_recovery                 => 0x13,
   :usb_update                      => 0x20, # USB upgrade (automatically inits nand!)
+  :erase_key                       => 0x20, # replaced on A83
   :outer_update                    => 0x21  # external disk upgrade
 }
 
@@ -121,10 +131,11 @@ AWActions = {
   :reboot                           => 0x2,
   :shutdown                         => 0x3,
   :reupdate                         => 0x4,
-  :boot                             => 0x5
+  :boot                             => 0x5,
+  :sprite_test                      => 0x6
 }
 
-# Flag for FESCmd[:transmite]
+# Flag for FESCmd[:transmit]
 FESTransmiteFlag = {
   :write                           => 0x10, # aka :download
   :read                            => 0x20, # aka :upload
@@ -161,11 +172,21 @@ AWUSBStatus = {
 FESIndex = {
   :dram                            => 0x0,
   :physical                        => 0x1,
+  :nand                            => 0x2,
   :log                             => 0x2,
 # these below are usable on boot 1.0
-  :nand                            => 0x2,
   :card                            => 0x3,
+  :spinor                          => 0x3,
   :nand2                           => 0x20 # encrypted data write?
+}
+
+# Result of FES_QUERY_STORAGE
+AWStorageType = {
+    :nand                            => 0x0,
+    :card                            => 0x1,
+    :card2                           => 0x2,
+    :spinor                          => 0x3,
+    :unknown                         => -1 # added by me
 }
 
 #Livesuit image attributes
