@@ -424,7 +424,7 @@ class FELSuit < FELix
   # Check if image is encrypted
   # @raise [FELError] if image decryption failed
   def encrypted?
-    img = File.read(@image, 16) # Read block
+    img = File.read(@image, 16, mode: "rb") # Read block
     return false if img.byteslice(0, 8) == FELIX_IMG_HEADER
     img = FELHelpers.decrypt(img, :header) if img.byteslice(0, 8) !=
       FELIX_IMG_HEADER
@@ -450,7 +450,7 @@ class FELSuit < FELix
     offset = 0)
     raise FELError, "Item does not exist" unless item
     if block_given?
-      File.open(@image) do |f|
+      File.open(@image, "rb") do |f|
         f.seek(item.off_len_low + offset, IO::SEEK_CUR)
         read = 0
         while data = f.read(chunk)
@@ -467,7 +467,7 @@ class FELSuit < FELix
         end
       end
     else
-      data = File.read(@image, length, item.off_len_low + offset)
+      data = File.read(@image, length, item.off_len_low + offset, mode: "rb")
       raise FELError, "Cannot read data" unless data
       data = FELHelpers.decrypt(data, :data) if @encrypted
       data

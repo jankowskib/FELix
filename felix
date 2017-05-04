@@ -349,7 +349,7 @@ begin
       end
       opts.on("--decode-mbr path", String, "Decode sunxi-mbr.fex") do |f|
         begin
-          mbr = File.read(f)
+          mbr = File.read(f, mode: "rb")
           AWMBR.read(mbr).inspect
         rescue Errno::ENOENT
           puts "File not found!"
@@ -359,7 +359,7 @@ begin
       end
       opts.on("--verify-sparse path", String, "Check if a sparse image is valid") do |f|
         begin
-          header = File.read(f, 64) # read first 64 bytes
+          header = File.read(f, 64, mode: "rb") # read first 64 bytes
           raise SparseError, "Not a sparse file" unless SparseImage.is_valid?(header)
             File.open(f, "rb") do |file|
               sparse = SparseImage.new(file)
@@ -387,7 +387,7 @@ begin
       end
       opts.on("--decompress-sparse path", String, "Decompress a sparse image (output to STDOUT!)") do |f|
         begin
-          header = File.read(f, 64) # read first 64 bytes
+          header = File.read(f, 64, mode: "rb") # read first 64 bytes
           raise SparseError, "Not a sparse file" unless SparseImage.is_valid?(header)
             File.open(f, "rb") do |file|
               sparse = SparseImage.new(file)
@@ -414,7 +414,7 @@ begin
       end
       opts.on("--decode-dl path", String, "Decode dlinfo.fex") do |f|
         begin
-          dl = File.read(f)
+          dl = File.read(f, mode: "rb")
           AWDownloadInfo.read(dl).inspect
         rescue Errno::ENOENT
           puts "File not found!"
@@ -446,7 +446,7 @@ begin
       end
       opts.on("--uboot-crc file", String, "Update CRC of a u-boot.fex file") do |f|
         begin
-          uboot = UbootBinary.read(File.read(f))
+          uboot = UbootBinary.read(File.read(f, mode: "rb"))
           old_sum = uboot.header.check_sum.to_i
           uboot.header.check_sum = UBOOT_STAMP_VALUE
           new_sum = FELHelpers.checksum(uboot.to_binary_s)
@@ -677,7 +677,7 @@ begin
   when :mbr
     print ("* Writing new paratition table" << ($options[:format] ? " and formatting storage" :
       "")).ljust(57) << "\t" unless $options[:verbose]
-    mbr = File.read($options[:file])
+    mbr = File.read($options[:file], mode: "rb")
     status = fel.write_mbr(mbr, $options[:format])
     raise FELError, "Write failed (#{status.crc})" if status.crc != 0
     puts "[OK]".green unless $options[:verbose]
@@ -721,7 +721,7 @@ begin
       $options[:length] = part.lenlo * FELIX_SECTOR
       $options[:mode] = :fes
     end
-    f = File.open($options[:file], "w")
+    f = File.open($options[:file], "wb")
     print "* #{$options[:mode]}: Reading data".ljust(57) << "\t" unless $options[:verbose]
     data = fel.read($options[:address], $options[:length], $options[:tags],
       $options[:mode]) do |b, chunk|
@@ -733,7 +733,7 @@ begin
     end
     puts "[OK]".green unless $options[:verbose]
   when :write
-    header = File.read($options[:file], 64) # read first 64 bytes
+    header = File.read($options[:file], 64, mode: "rb") # read first 64 bytes
     file_size = 0
     sparsed = SparseImage.is_valid?(header)
     if sparsed
@@ -863,8 +863,9 @@ begin
       end
       threads.each {|t| t.join}
     end
-    puts "[OK]".green unless $options[:verbose]
-    unless sparsed
+    puts "[OK]".green unless $options[:verbose]     
+ 
+    unless $options[:mode] == :fel || sparsed
       print ("\r* Verifying").ljust(57) << "\t" unless $options[:verbose]
       resp = fel.verify_status($options[:tags])
       raise FELFatal, "Verification failed" if resp.crc != 0
@@ -878,7 +879,7 @@ begin
   when :transmit
     if $options[:direction] == :write
       print "* Reading file" unless $options[:verbose]
-      data = File.read($options[:file])
+      data = File.read($options[:file], mode: "rb")
       print " (#{data.bytesize} bytes)".ljust(57) << "\t" unless $options[:verbose]
     end
     data ||= nil
@@ -892,7 +893,7 @@ begin
     end
     if $options[:direction] == :read && data
       print "\r* Writing data (#{data.length} bytes )".ljust(57) << "\t"
-      File.open($options[:file], "w") { |f| f.write(data) }
+      File.open($options[:file], "wb") { |f| f.write(data) }
     end
     puts "[OK]".green unless $options[:verbose]
   when :reboot
@@ -907,7 +908,7 @@ begin
       print "* Extracting to #{fn}".ljust(57) << "\t"
       item = fel.structure.item_by_file($options[:item])
       raise FELError, "Item not found!" unless item
-      File.open(fn, "w") do |f|
+      File.open(fn, "wb") do |f|
         if $options[:decompress] && SparseImage.is_valid?(fel.get_image_data(
           item, 64, 64))
           sys_handle = fel.get_image_handle(item)
@@ -915,6 +916,7 @@ begin
           sparse.each_chunk { |ch| f.write(ch) }
           sys_handle.close
         else
+          p item
           fel.get_image_data(item, 8192, item.file_len_low) { |d| f.write(d) }
         end
       end

@@ -191,10 +191,10 @@ class FELix
 
       # if EFEX_TAG_DRAM isnt set we read nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
-        next_sector=request.len / 512
+        next_sector=(request.len / 512).to_i
         request.address+=( next_sector ? next_sector : 1) # Read next sector if its less than 512
       else
-        request.address+=request.len
+        request.address+=request.len.to_i
       end
       yield length-remain_len, data if block_given?
     end
@@ -242,10 +242,10 @@ class FELix
       total_len-=request.len
       # if EFEX_TAG_DRAM isnt set we write nand/sdcard
       if request.flags & AWTags[:dram] == 0 && mode == :fes
-        next_sector=request.len / 512
+        next_sector = (request.len / 512).to_i
         request.address+=( next_sector ? next_sector : 1) # Write next sector if its less than 512
       else
-        request.address+=request.len
+        request.address+=request.len.to_i
       end
       yield start if block_given? # yield sent bytes
     end
