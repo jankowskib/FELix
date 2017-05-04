@@ -1049,7 +1049,7 @@ rescue SignalException
   $exit_code = FELIX_FATAL
 rescue => e
   puts "[WTF]".red
-  puts "#{e.message} at #{e.backtrace.join("\n")}"
+  puts "#{e.class}: #{e.message} at #{e.backtrace.join("\n")}"
   $exit_code = FELIX_FATAL
 ensure
   begin
