@@ -644,3 +644,23 @@ class AWImage < BinData::Record
   end
 
 end
+
+# Sunxi bootloader header
+class BootHeader < BinData::Record
+    endian  :little
+    uint32  :jump_instruction              # one intruction jumping to real code
+    string  :magic, :length => 8, :trim_padding => true,
+              :assert => lambda { ["eGON.BT0", "eGON.BT1", "uboot"].include? magic }
+    uint32  :check_sum
+    uint32  :align_size                   # 0x4000
+    uint32  :file_length                  # including sys_config.fex & header
+    uint32  :sys_config_offset            # file offset wher sys_config.fex starts
+    
+end
+
+# A placeholder for uboot crc update
+class UbootBinary < BinData::Record
+  endian      :little
+  boot_header :header
+  array       :uboot, :type => :uint8, :read_until => :eof
+end

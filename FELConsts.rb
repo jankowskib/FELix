@@ -40,6 +40,9 @@ FELIX_FAIL = 1
 # Error exit code - unhandled erorrs (WTF)
 FELIX_FATAL = 2
 
+# Uboot checksum constant
+UBOOT_STAMP_VALUE = 0x5F0A6C39
+
 #AWUSBRequest type
 USBCmd = {
   :read                            => 0x11,

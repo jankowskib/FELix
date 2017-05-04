@@ -13,6 +13,14 @@ describe FELHelpers do
       end
     end
 
+    it 'recomputes crc for u-boot binary' do
+      uboot = UbootBinary.read(File.read("./spec/assets/u-boot.sample"))
+      old_sum = uboot.header.check_sum
+      uboot.header.check_sum = UBOOT_STAMP_VALUE
+      uboot.header.check_sum = FELHelpers.checksum(uboot.to_binary_s)
+      expect(uboot.header.check_sum).to eq(old_sum)
+    end
+
   end
 
   describe '::port_to_id' do

@@ -405,7 +405,31 @@ begin
         $options[:file] = f
         $options[:dont_connect] = true
       end
-
+      opts.on("--uboot-crc file", String, "Update CRC of a u-boot.fex file") do |f|
+        begin
+          uboot = UbootBinary.read(File.read(f))
+          old_sum = uboot.header.check_sum.to_i
+          uboot.header.check_sum = UBOOT_STAMP_VALUE
+          new_sum = FELHelpers.checksum(uboot.to_binary_s)
+          puts "* Current checksum: 0x%08x" % old_sum unless $options[:verbose]
+          if new_sum != old_sum
+            puts "* New checksum: 0x%08x" % new_sum unless $options[:verbose]
+            print "* Writing new checksum".ljust(57) << "\t"  unless $options[:verbose]
+            File.open(f, "r+") do |file|
+              file.seek(12, IO::SEEK_SET)
+              val = BinData::Uint32le.new(new_sum)
+              file.write(val.to_binary_s)
+            end
+              puts "[OK]".ljust(4).green unless $options[:verbose]
+          else
+            puts "* Checksum not changed" unless $options[:verbose]
+          end
+        rescue Errno::ENOENT
+          puts "File not found!"
+          exit FELIX_FAIL
+        end
+        exit FELIX_SUCCESS
+      end
       opts.separator "* FEL/FES mode".light_blue.underline
       opts.on("--wfd", "Block until device is detected") do
         usb = LIBUSB::Context.new
